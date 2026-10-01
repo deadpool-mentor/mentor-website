@@ -99,6 +99,7 @@ document.querySelectorAll('[data-command]').forEach(button => button.addEventLis
 $('#toggleHtml').addEventListener('click', () => htmlMode($('#htmlSource').hidden));
 $('#insertLink').addEventListener('click', () => { const url = prompt('연결할 링크 주소를 입력해 주세요 (https://...)'); if (!url) return; try { const parsed = new URL(url); if (!['http:','https:'].includes(parsed.protocol)) throw new Error(); } catch { $('#contentStatus').textContent = 'http 또는 https 링크를 입력해 주세요.'; return; } if (!$('#htmlSource').hidden) htmlMode(false); restoreRange(); document.execCommand('createLink', false, url); });
 $('#insertImage').addEventListener('click', () => { if (!$('#htmlSource').hidden) htmlMode(false); $('#imageFile').click(); });
+$('#insertTable').addEventListener('click', () => { if (!$('#htmlSource').hidden) htmlMode(false); restoreRange(); document.execCommand('insertHTML', false, '<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr><td>항목 1</td><td>내용을 입력하세요</td></tr><tr><td>항목 2</td><td>내용을 입력하세요</td></tr></tbody></table><p><br></p>'); });
 async function uploadImage(file) {
   if (!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type) || file.size > 5_000_000) throw new Error('이미지는 PNG·JPG·WEBP·GIF 파일 5MB 이하만 가능합니다.');
   const response = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
