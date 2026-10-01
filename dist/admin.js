@@ -99,7 +99,10 @@ $('#contentForm').addEventListener('submit', async event => {
     }
     $('#contentStatus').textContent = '저장하는 중입니다.';
     const response = await fetch(id ? `/api/content/${id}` : '/api/content', { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!response.ok) throw new Error(response.status === 413 ? '글 크기가 너무 큽니다. 본문 이미지는 파일 업로드로 넣어 주세요.' : response.status === 401 ? '로그인이 만료되었습니다. 작성 내용을 복사한 뒤 다시 로그인해 주세요.' : `저장하지 못했습니다 (${response.status}). 입력한 내용은 그대로 두었습니다.`);
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(response.status === 401 ? '로그인이 만료되었습니다. 작성 내용을 복사한 뒤 다시 로그인해 주세요.' : response.status === 413 ? detail.error || '글이 너무 큽니다. 이미지를 줄이거나 편집기의 이미지 버튼으로 올려 주세요.' : detail.error || `저장하지 못했습니다 (${response.status}). 입력한 내용은 그대로 두었습니다.`);
+    }
     resetEditor(); await loadAdminContent(); $('#contentStatus').textContent = '글을 저장했습니다. 홈페이지에서 새로고침하면 표시됩니다.';
   } catch (error) { $('#contentStatus').textContent = error.message || '저장하지 못했습니다. 입력한 내용은 그대로 두었습니다.'; }
   finally { button.disabled = false; }

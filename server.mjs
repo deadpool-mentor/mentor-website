@@ -44,6 +44,24 @@ function imageExtension(data, type) {
   if (type === 'image/webp' && data.subarray(0,4).toString() === 'RIFF' && data.subarray(8,12).toString() === 'WEBP') return 'webp';
   return null;
 }
+async function storeEmbeddedImages(html) {
+  let imageCount = 0;
+  const imageTags = html.match(/<img\b[^>]*>/gi) || [];
+  for (const tag of imageTags) {
+    const source = tag.match(/\bsrc\s*=\s*(["'])(data:image\/(png|jpeg|webp|gif);base64,([a-z0-9+/=\s]+))\1/i);
+    if (!source) continue;
+    if (++imageCount > 8) throw Object.assign(new Error('한 글에 붙여 넣는 이미지는 최대 8개입니다. 더 많은 이미지는 편집기의 이미지 버튼으로 넣어 주세요.'), { status: 413 });
+    const mime = `image/${source[3].toLowerCase()}`, encoded = source[4];
+    if (encoded.length > 6_700_000) throw Object.assign(new Error('붙여 넣은 이미지 1개의 크기가 5MB를 넘습니다. 이미지를 줄여서 다시 넣어 주세요.'), { status: 413 });
+    const file = Buffer.from(encoded, 'base64');
+    const ext = imageExtension(file, mime);
+    if (!ext || file.length > 5_000_000) throw Object.assign(new Error('붙여 넣은 이미지는 PNG·JPG·WEBP·GIF 형식, 5MB 이하만 가능합니다.'), { status: 413 });
+    const name = `${randomBytes(16).toString('hex')}.${ext}`;
+    await storage.putImage(name, file, mime);
+    html = html.replace(tag, tag.replace(source[0], `src="/uploads/${name}"`));
+  }
+  return html;
+}
 function sameOrigin(request) { const origin = request.headers.origin; return !origin || [`http://${request.headers.host}`, `https://${request.headers.host}`].includes(origin); }
 function authorized(request) {
   const cookie = (request.headers.cookie || '').split(';').map(part => part.trim()).find(part => part.startsWith('mentor_session='));
@@ -121,8 +139,9 @@ createServer(async (request, response) => {
         return json(response, deleted ? 200 : 404, { ok: deleted });
       }
       if (request.method === 'PUT' && !id || request.method === 'POST' && path !== '/api/content') return json(response, 400, { error: 'Invalid path' });
-      const data = await readBody(request, 300_000);
-      const type = String(data.type || ''), category = String(data.category || '').trim().slice(0, 40), title = String(data.title || '').trim().slice(0, 160), format = data.format === 'html' ? 'html' : 'text', body = (format === 'html' ? cleanHtml(String(data.body || '')) : String(data.body || '')).trim().slice(0, 60_000), coverImage = /^\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)$/.test(data.cover_image || '') ? data.cover_image : null;
+      const data = await readBody(request, 20_000_000);
+      const type = String(data.type || ''), category = String(data.category || '').trim().slice(0, 40), title = String(data.title || '').trim().slice(0, 160), format = data.format === 'html' ? 'html' : 'text', rawBody = String(data.body || ''), body = (format === 'html' ? cleanHtml(await storeEmbeddedImages(rawBody)) : rawBody).trim(), coverImage = /^\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)$/.test(data.cover_image || '') ? data.cover_image : null;
+      if (Buffer.byteLength(body, 'utf8') > 500_000) return json(response, 413, { error: '이미지를 제외한 글 본문은 500KB 이하로 작성해 주세요.' });
       if (!['post','review'].includes(type) || !category || !title || !body || (!plain({ body, format }).trim() && !/<img\b[^>]*\bsrc="\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)"/i.test(body))) return json(response, 400, { error: 'Invalid content' });
       const now = new Date().toISOString();
       if (request.method === 'POST') {
@@ -134,6 +153,6 @@ createServer(async (request, response) => {
     }
     if (request.method !== 'GET' || !files[path]) return json(response, 404, { error: 'Not found' });
     const [filename, type] = files[path], file = await readFile(resolve(assetDir, filename));
-    response.writeHead(200, { 'Content-Type': type, 'Cache-Control': path === '/admin' ? 'no-store' : 'public, max-age=60' }); response.end(file);
-  } catch (error) { console.error(error); json(response, error.message === 'Too large' ? 413 : 500, { error: 'Request failed' }); }
+    response.writeHead(200, { 'Content-Type': type, 'Cache-Control': ['/admin','/admin.js'].includes(path) ? 'no-store' : 'public, max-age=60' }); response.end(file);
+  } catch (error) { console.error(error); json(response, error.status || (error.message === 'Too large' ? 413 : 500), { error: error.status ? error.message : error.message === 'Too large' ? '요청 크기가 너무 큽니다. 이미지를 줄이거나 편집기의 이미지 버튼으로 올려 주세요.' : 'Request failed' }); }
 }).listen(Number(process.env.PORT || 8123), process.env.PORT ? '0.0.0.0' : '127.0.0.1', () => console.log(`Server listening on port ${process.env.PORT || 8123}`));
