@@ -39,11 +39,22 @@ async function refresh() {
   } catch { $('#adminStatus').textContent = '신청 내역을 불러오지 못했습니다. 새로고침해 주세요.'; }
 }
 let contentEntries = [];
-function resetEditor() { $('#contentForm').reset(); $('#contentForm [name="id"]').value = ''; $('#editorHeading').textContent = '새 글 작성'; $('#contentStatus').textContent = ''; }
+let savedRange = null;
+function htmlMode(on) {
+  if (on) $('#htmlSource').value = $('#richBody').innerHTML;
+  else if (!$('#htmlSource').hidden) $('#richBody').innerHTML = $('#htmlSource').value;
+  $('#richBody').hidden = on; $('#htmlSource').hidden = !on;
+  $('#toggleHtml').setAttribute('aria-pressed', String(on));
+}
+function resetEditor() { $('#contentForm').reset(); $('#contentForm [name="id"]').value = ''; htmlMode(false); $('#richBody').replaceChildren(); $('#htmlSource').value = ''; $('#coverPreview').hidden = true; $('#coverPreview').removeAttribute('src'); $('#editorHeading').textContent = '새 글 작성'; $('#contentStatus').textContent = ''; }
 function editEntry(entry) {
   const form = $('#contentForm');
-  for (const key of ['id','type','category','title','body']) form.elements.namedItem(key).value = key === 'category' ? entry[key].replace(/\s+/g, '') : entry[key];
-  $('#editorHeading').textContent = '글 수정'; $('#contentStatus').textContent = '예시 글을 수정해 저장하면 예시 표시가 사라집니다.';
+  for (const key of ['id','type','category','title']) form.elements.namedItem(key).value = key === 'category' ? entry[key].replace(/\s+/g, '') : entry[key];
+  form.elements.cover_image.value = entry.cover_image || ''; $('#coverPreview').hidden = !entry.cover_image; if (entry.cover_image) $('#coverPreview').src = entry.cover_image;
+  htmlMode(false);
+  if (entry.format === 'html') $('#richBody').innerHTML = entry.body;
+  else { const paragraph = document.createElement('p'); paragraph.textContent = entry.body; $('#richBody').replaceChildren(paragraph); }
+  $('#editorHeading').textContent = '글 수정'; $('#contentStatus').textContent = entry.sample ? '예시 글을 수정해 저장하면 예시 표시가 사라집니다.' : '';
   form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 async function loadAdminContent() {
@@ -70,7 +81,9 @@ async function loadAdminContent() {
 }
 $('#contentForm').addEventListener('submit', async event => {
   event.preventDefault(); const form = event.currentTarget, data = new FormData(form), id = String(data.get('id') || '');
-  const payload = Object.fromEntries(['type','category','title','body'].map(key => [key, String(data.get(key) || '').trim()]));
+  const payload = Object.fromEntries(['type','category','title','cover_image'].map(key => [key, String(data.get(key) || '').trim()]));
+  payload.body = ($('#htmlSource').hidden ? $('#richBody').innerHTML : $('#htmlSource').value).trim(); payload.format = 'html';
+  if (!payload.body || !($('#htmlSource').hidden ? $('#richBody').textContent : new DOMParser().parseFromString(payload.body, 'text/html').body.textContent).trim()) { $('#contentStatus').textContent = '본문을 입력해 주세요.'; return; }
   const button = form.querySelector('button[type="submit"]'); button.disabled = true; $('#contentStatus').textContent = '저장하는 중입니다.';
   try {
     const response = await fetch(id ? `/api/content/${id}` : '/api/content', { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -79,6 +92,39 @@ $('#contentForm').addEventListener('submit', async event => {
   finally { button.disabled = false; }
 });
 $('#resetEditor').addEventListener('click', resetEditor);
+$('#richBody').addEventListener('mouseup', () => { const selection = getSelection(); if (selection.rangeCount) savedRange = selection.getRangeAt(0).cloneRange(); });
+$('#richBody').addEventListener('keyup', () => { const selection = getSelection(); if (selection.rangeCount) savedRange = selection.getRangeAt(0).cloneRange(); });
+function restoreRange() { $('#richBody').focus(); if (savedRange && $('#richBody').contains(savedRange.commonAncestorContainer)) { const selection = getSelection(); selection.removeAllRanges(); selection.addRange(savedRange); } }
+document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', () => { if (!$('#htmlSource').hidden) htmlMode(false); restoreRange(); document.execCommand(button.dataset.command, false, button.dataset.value || null); $('#richBody').focus(); }));
+$('#toggleHtml').addEventListener('click', () => htmlMode($('#htmlSource').hidden));
+$('#insertLink').addEventListener('click', () => { const url = prompt('연결할 링크 주소를 입력해 주세요 (https://...)'); if (!url) return; try { const parsed = new URL(url); if (!['http:','https:'].includes(parsed.protocol)) throw new Error(); } catch { $('#contentStatus').textContent = 'http 또는 https 링크를 입력해 주세요.'; return; } if (!$('#htmlSource').hidden) htmlMode(false); restoreRange(); document.execCommand('createLink', false, url); });
+$('#insertImage').addEventListener('click', () => { if (!$('#htmlSource').hidden) htmlMode(false); $('#imageFile').click(); });
+async function uploadImage(file) {
+  if (!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type) || file.size > 5_000_000) throw new Error('이미지는 PNG·JPG·WEBP·GIF 파일 5MB 이하만 가능합니다.');
+  const response = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+  if (!response.ok) throw new Error('이미지를 올리지 못했습니다. 다시 시도해 주세요.');
+  return (await response.json()).url;
+}
+$('#chooseCover').addEventListener('click', () => $('#coverFile').click());
+$('#removeCover').addEventListener('click', () => { $('#contentForm [name="cover_image"]').value = ''; $('#coverPreview').hidden = true; $('#coverPreview').removeAttribute('src'); });
+$('#coverFile').addEventListener('change', async event => {
+  const file = event.target.files?.[0]; if (!file) return;
+  $('#contentStatus').textContent = '대표 이미지를 올리는 중입니다.';
+  try { const url = await uploadImage(file); $('#contentForm [name="cover_image"]').value = url; $('#coverPreview').src = url; $('#coverPreview').hidden = false; $('#contentStatus').textContent = '대표 이미지를 설정했습니다.'; }
+  catch (error) { $('#contentStatus').textContent = error.message; }
+  event.target.value = '';
+});
+$('#imageFile').addEventListener('change', async event => {
+  const file = event.target.files?.[0]; if (!file) return;
+  $('#contentStatus').textContent = '이미지를 올리는 중입니다.';
+  try {
+    const url = await uploadImage(file);
+    restoreRange(); const img = document.createElement('img'); img.src = url; img.alt = file.name.replace(/\.[^.]+$/, '');
+    const selection = getSelection(); if (selection.rangeCount && $('#richBody').contains(selection.anchorNode)) { const range = selection.getRangeAt(0); range.deleteContents(); range.insertNode(img); range.setStartAfter(img); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); } else $('#richBody').append(img);
+    $('#contentStatus').textContent = '이미지를 본문에 넣었습니다.';
+  } catch (error) { $('#contentStatus').textContent = error.message; }
+  event.target.value = '';
+});
 $('#adminLogin').addEventListener('submit', async event => {
   event.preventDefault();
   const form = event.currentTarget, button = form.querySelector('button');

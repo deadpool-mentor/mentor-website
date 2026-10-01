@@ -17,10 +17,10 @@ function toast(message) {
 function renderPosts(category = '전체') {
   activePostCategory = category;
   document.querySelectorAll('.board-tab').forEach(tab => tab.setAttribute('aria-selected', String(tab.dataset.filter === category)));
-  const shown = posts.flatMap((post, index) => {
+  const shown = posts.flatMap(post => {
     if (category !== '전체' && post.category !== category) return [];
-    const button = document.createElement('button');
-    button.type = 'button'; button.className = 'post'; button.dataset.index = String(index);
+    const button = document.createElement('a');
+    button.href = `/posts/${post.id}`; button.className = 'post';
     for (const [className, value] of [['post-tag', post.sample ? `${post.category} · 예시` : post.category], ['post-title', post.title], ['post-date', new Date(post.created_at).toLocaleDateString('ko-KR')]]) {
       const span = document.createElement('span'); span.className = className; span.textContent = value; button.append(span);
     }
@@ -31,10 +31,10 @@ function renderPosts(category = '전체') {
 }
 function renderReviews() {
   const cards = reviews.map(review => {
-    const card = document.createElement('article'); card.className = 'review';
+    const card = document.createElement('a'); card.className = 'review'; card.href = `/reviews/${review.id}`;
     const category = document.createElement('span'); const readableCategory = review.category === '학위취득' ? '학위 취득' : review.category; category.textContent = review.sample ? `${readableCategory} / 예시` : readableCategory;
     const title = document.createElement('h3'); title.textContent = review.title;
-    const body = document.createElement('p'); body.textContent = review.body;
+    const body = document.createElement('p'); body.textContent = review.format === 'html' ? new DOMParser().parseFromString(review.body, 'text/html').body.textContent.slice(0, 150) : review.body;
     const note = document.createElement('small'); note.textContent = review.sample ? '화면 구성 예시 · 실제 후기 아님' : new Date(review.created_at).toLocaleDateString('ko-KR');
     card.append(category, title, body, note); return card;
   });
@@ -53,13 +53,6 @@ function initNavigation() {
   loadContent();
   document.querySelectorAll('.board-tab').forEach(tab => tab.addEventListener('click', () => renderPosts(tab.dataset.filter)));
   document.querySelectorAll('[data-category]').forEach(link => link.addEventListener('click', () => renderPosts(link.dataset.category)));
-  $('#postList').addEventListener('click', event => {
-    const button = event.target.closest('.post'); if (!button) return;
-    const post = posts[Number(button.dataset.index)];
-    $('#modalTag').textContent = post.sample ? `${post.category} · 예시` : post.category; $('#modalTitle').textContent = post.title; $('#modalBody').textContent = post.body; $('#postModal small').textContent = post.sample ? '화면 구성 예시 글입니다.' : '최종 요건은 최신 공식 안내를 확인해 주세요.'; $('#postModal').showModal();
-  });
-  $('#modalClose').addEventListener('click', () => $('#postModal').close());
-  $('#postModal').addEventListener('click', event => { if (event.target === $('#postModal')) $('#postModal').close(); });
   const menuToggle = $('#menuToggle'), nav = $('#nav');
   menuToggle.addEventListener('click', () => { const open = nav.classList.toggle('open'); menuToggle.setAttribute('aria-expanded', String(open)); menuToggle.setAttribute('aria-label', open ? '메뉴 닫기' : '메뉴 열기'); });
   nav.querySelectorAll('a').forEach(link => link.addEventListener('click', () => { nav.classList.remove('open'); menuToggle.setAttribute('aria-expanded', 'false'); }));
