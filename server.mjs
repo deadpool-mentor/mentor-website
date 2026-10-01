@@ -123,7 +123,7 @@ createServer(async (request, response) => {
       if (request.method === 'PUT' && !id || request.method === 'POST' && path !== '/api/content') return json(response, 400, { error: 'Invalid path' });
       const data = await readBody(request, 300_000);
       const type = String(data.type || ''), category = String(data.category || '').trim().slice(0, 40), title = String(data.title || '').trim().slice(0, 160), format = data.format === 'html' ? 'html' : 'text', body = (format === 'html' ? cleanHtml(String(data.body || '')) : String(data.body || '')).trim().slice(0, 60_000), coverImage = /^\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)$/.test(data.cover_image || '') ? data.cover_image : null;
-      if (!['post','review'].includes(type) || !category || !title || !body || !plain({ body, format }).trim()) return json(response, 400, { error: 'Invalid content' });
+      if (!['post','review'].includes(type) || !category || !title || !body || (!plain({ body, format }).trim() && !/<img\b[^>]*\bsrc="\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)"/i.test(body))) return json(response, 400, { error: 'Invalid content' });
       const now = new Date().toISOString();
       if (request.method === 'POST') {
         const id = await storage.insertContent({ type, category, title, body, format, cover_image: coverImage, created_at: now, updated_at: now });

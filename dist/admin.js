@@ -83,12 +83,25 @@ $('#contentForm').addEventListener('submit', async event => {
   event.preventDefault(); const form = event.currentTarget, data = new FormData(form), id = String(data.get('id') || '');
   const payload = Object.fromEntries(['type','category','title','cover_image'].map(key => [key, String(data.get(key) || '').trim()]));
   payload.body = ($('#htmlSource').hidden ? $('#richBody').innerHTML : $('#htmlSource').value).trim(); payload.format = 'html';
-  if (!payload.body || !($('#htmlSource').hidden ? $('#richBody').textContent : new DOMParser().parseFromString(payload.body, 'text/html').body.textContent).trim()) { $('#contentStatus').textContent = '본문을 입력해 주세요.'; return; }
+  const draft = new DOMParser().parseFromString(payload.body, 'text/html');
+  if (!draft.body.textContent.trim() && !draft.body.querySelector('img')) { $('#contentStatus').textContent = '본문을 입력해 주세요.'; return; }
   const button = form.querySelector('button[type="submit"]'); button.disabled = true; $('#contentStatus').textContent = '저장하는 중입니다.';
   try {
+    const embeddedImages = [...draft.body.querySelectorAll('img')].filter(image => /^(data:|blob:)/i.test(image.getAttribute('src') || ''));
+    for (const [index, image] of embeddedImages.entries()) {
+      $('#contentStatus').textContent = `붙여 넣은 이미지 업로드 중 (${index + 1}/${embeddedImages.length})`;
+      const blob = await fetch(image.getAttribute('src')).then(response => response.blob());
+      image.setAttribute('src', await uploadImage(blob));
+    }
+    if (embeddedImages.length) {
+      payload.body = draft.body.innerHTML.trim();
+      if ($('#htmlSource').hidden) $('#richBody').innerHTML = payload.body; else $('#htmlSource').value = payload.body;
+    }
+    $('#contentStatus').textContent = '저장하는 중입니다.';
     const response = await fetch(id ? `/api/content/${id}` : '/api/content', { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!response.ok) throw new Error('Save failed'); resetEditor(); await loadAdminContent(); $('#contentStatus').textContent = '글을 저장했습니다. 홈페이지에서 새로고침하면 표시됩니다.';
-  } catch { $('#contentStatus').textContent = '저장하지 못했습니다. 입력한 내용은 그대로 두었습니다.'; }
+    if (!response.ok) throw new Error(response.status === 413 ? '글 크기가 너무 큽니다. 본문 이미지는 파일 업로드로 넣어 주세요.' : response.status === 401 ? '로그인이 만료되었습니다. 작성 내용을 복사한 뒤 다시 로그인해 주세요.' : `저장하지 못했습니다 (${response.status}). 입력한 내용은 그대로 두었습니다.`);
+    resetEditor(); await loadAdminContent(); $('#contentStatus').textContent = '글을 저장했습니다. 홈페이지에서 새로고침하면 표시됩니다.';
+  } catch (error) { $('#contentStatus').textContent = error.message || '저장하지 못했습니다. 입력한 내용은 그대로 두었습니다.'; }
   finally { button.disabled = false; }
 });
 $('#resetEditor').addEventListener('click', resetEditor);
