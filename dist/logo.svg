@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="정수멘토 로고">
+  <rect width="64" height="64" rx="15" fill="#102a43"/>
+  <path d="M13 47h38" fill="none" stroke="#9fded4" stroke-width="2" stroke-linecap="round" opacity=".65"/>
+  <path d="M16 43V34h9v9M28 43V27h9v16M40 43V19h9v24" fill="none" stroke="#78e3d2" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m15 22 9-7 9 3 15-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="48" cy="9" r="3" fill="#fff"/>
+</svg>
