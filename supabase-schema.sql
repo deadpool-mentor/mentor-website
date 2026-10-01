@@ -32,6 +32,10 @@ revoke all on sequence public.content_entries_id_seq, public.consultations_id_se
 grant all on public.content_entries, public.consultations to service_role;
 grant usage, select on sequence public.content_entries_id_seq, public.consultations_id_seq to service_role;
 
+insert into storage.buckets (id, name, public)
+values ('mentor-images', 'mentor-images', false)
+on conflict (id) do nothing;
+
 insert into public.content_entries (type, category, title, body, sample)
 select type, category, title, body, true
 from (values
