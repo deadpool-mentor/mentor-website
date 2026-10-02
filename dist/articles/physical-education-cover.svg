@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">체육교육대학원 양성과정 안내</title>
+  <desc id="desc">정수멘토가 지원 자격과 학점은행제 체육학사 준비 순서를 설명합니다.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#0c2539"/><stop offset="1" stop-color="#19546a"/></linearGradient>
+    <linearGradient id="mint" x1="0" x2="1"><stop stop-color="#59d2bf"/><stop offset="1" stop-color="#b2f1df"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g fill="none" stroke="#ffffff" opacity=".09"><circle cx="1080" cy="430" r="310" stroke-width="2"/><circle cx="1080" cy="430" r="240" stroke-width="2"/><circle cx="1080" cy="430" r="170" stroke-width="2"/><path d="M825 100v440M970 60v520M1120 45v540" stroke-width="1"/></g>
+  <g transform="translate(66 58)"><rect width="54" height="54" rx="13" fill="#102a43"/><path d="M11 40h33M14 37v-7h7v7M24 37V24h7v13M34 37V17h7v20" fill="none" stroke="#78e3d2" stroke-width="3" stroke-linejoin="round"/><path d="m13 20 8-6 8 3 12-8" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="41" cy="9" r="2.5" fill="#fff"/></g>
+  <text x="136" y="91" fill="#fff" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="27" font-weight="800">정수멘토</text>
+  <text x="66" y="179" fill="#a9e8dc" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="21" font-weight="700" letter-spacing="3">EDUCATION GUIDE</text>
+  <text x="66" y="269" fill="#fff" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="67" font-weight="900">체육교육대학원</text>
+  <text x="66" y="355" fill="url(#mint)" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="76" font-weight="900">양성과정</text>
+  <text x="69" y="418" fill="#d9e9ee" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="26">지원자격부터 체육학사 준비까지</text>
+  <rect x="66" y="486" width="1068" height="86" rx="17" fill="#ffffff" fill-opacity=".11" stroke="#ffffff" stroke-opacity=".18"/>
+  <text x="94" y="537" fill="#fff" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="22" font-weight="700">01  양성·재교육 구분</text>
+  <text x="430" y="537" fill="#fff" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="22" font-weight="700">02  학위·전공학점 확인</text>
+  <text x="798" y="537" fill="#fff" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="22" font-weight="700">03  지원 일정 설계</text>
+</svg>
