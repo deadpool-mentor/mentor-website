@@ -45,6 +45,15 @@ async function refresh() {
 }
 let contentEntries = [];
 let savedRange = null;
+const reviewTemplate = `<p><strong>학습자 프로필</strong></p><ul><li>목표: [희망 과정·자격증]</li><li>학습자: [연령대와 상황만 간단히]</li><li>처음 고민: [상담 당시 어려웠던 점]</li></ul><h2>1. 학습을 시작한 이유</h2><p>[실제 상담 내용에 근거해 시작 배경을 적어 주세요.]</p><h2>2. 진행하면서 함께 해결한 부분</h2><p>[과목 선택, 일정 관리, 과제·토론 준비 등 실제로 도운 내용을 적어 주세요.]</p><h2>3. 학습자의 반응</h2><p>[대화에서 확인할 수 있는 반응을 과장 없이 적어 주세요.]</p><h2>4. 대화로 확인한 후기</h2><p>[이름·연락처 등 개인정보를 가린 캡처를 아래에 넣어 주세요. 게시된 후기 이미지에는 정수멘토 워터마크가 표시됩니다.]</p><h2>5. 비슷한 고민이 있다면</h2><p>현재 학력과 목표에 맞는 학습 순서를 함께 확인해 보세요. <a href="https://open.kakao.com/o/sfAip6Mi" target="_blank" rel="noopener noreferrer">카카오톡으로 상담하기 ↗</a></p>`;
+function insertReviewTemplate() {
+  if ($('#contentForm [name="id"]').value || $('#contentForm [name="type"]').value !== 'review') return;
+  if ($('#richBody').textContent.trim() || $('#htmlSource').value.trim()) return;
+  htmlMode(false);
+  $('#richBody').innerHTML = reviewTemplate;
+  $('#contentForm [name="category"]').value = '자격증';
+  $('#contentStatus').textContent = '학생 후기 기본 양식을 넣었습니다. 대괄호 안 안내를 실제 내용으로 바꿔 주세요.';
+}
 function htmlMode(on) {
   if (on) $('#htmlSource').value = $('#richBody').innerHTML.replace(/\u200b/g, '');
   else if (!$('#htmlSource').hidden) $('#richBody').innerHTML = $('#htmlSource').value;
@@ -52,6 +61,7 @@ function htmlMode(on) {
   $('#toggleHtml').setAttribute('aria-pressed', String(on));
 }
 function resetEditor() { $('#contentForm').reset(); $('#contentForm [name="id"]').value = ''; htmlMode(false); $('#richBody').replaceChildren(); $('#htmlSource').value = ''; savedRange = null; $('#coverPreview').hidden = true; $('#coverPreview').removeAttribute('src'); $('#editorHeading').textContent = '새 글 작성'; $('#contentStatus').textContent = ''; }
+$('#contentForm [name="type"]').addEventListener('change', insertReviewTemplate);
 function editEntry(entry) {
   const form = $('#contentForm');
   for (const key of ['id','type','category','title']) form.elements.namedItem(key).value = key === 'category' ? entry[key].replace(/\s+/g, '') : entry[key];
@@ -263,3 +273,4 @@ $('#adminLogin').addEventListener('submit', async event => {
   finally { button.disabled = false; }
 });
 $('#refresh').addEventListener('click', refresh); refresh();
+
