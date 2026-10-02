@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 460" role="img" aria-labelledby="title desc">
+  <title id="title">정수멘토 무료 학습계획표 상담</title>
+  <desc id="desc">최종학력과 목표 대학을 알려주시면 체육교육대학원 양성과정 준비 순서를 함께 확인합니다. 이미지를 누르면 카카오톡 상담으로 이동합니다.</desc>
+  <defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#123347"/><stop offset="1" stop-color="#0b756d"/></linearGradient></defs>
+  <rect width="1200" height="460" rx="24" fill="url(#bg)"/>
+  <g fill="none" stroke="#ffffff" stroke-opacity=".13"><circle cx="1040" cy="230" r="240"/><circle cx="1040" cy="230" r="165"/><circle cx="1040" cy="230" r="92"/></g>
+  <g transform="translate(67 54)"><rect width="48" height="48" rx="12" fill="#102a43"/><path d="M10 36h28M12 34v-6h6v6M21 34V22h6v12M30 34V15h6v19" fill="none" stroke="#78e3d2" stroke-width="2.5" stroke-linejoin="round"/><path d="m11 18 7-5 7 2 11-7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></g>
+  <text x="128" y="86" fill="#fff" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="24" font-weight="800">정수멘토</text>
+  <text x="67" y="191" fill="#fff" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="48" font-weight="900">내 학력에 맞는 준비 순서,</text>
+  <text x="67" y="253" fill="#aaf0dc" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="50" font-weight="900">무료로 확인해 보세요</text>
+  <text x="70" y="307" fill="#e1f0ef" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="22">목표 대학 · 최종학력 · 이수 과목을 기준으로 학습계획표를 안내합니다.</text>
+  <rect x="68" y="351" width="340" height="69" rx="13" fill="#fee500"/>
+  <text x="102" y="397" fill="#2c281c" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="24" font-weight="900">카카오톡 상담하기  ↗</text>
+</svg>
