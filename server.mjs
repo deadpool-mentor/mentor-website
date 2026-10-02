@@ -17,13 +17,13 @@ const files = { '/': ['index.html','text/html; charset=utf-8'], '/index.html': [
 function json(response, status, value) { response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(value)); }
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[character]);
 function cleanHtml(value) {
-  return sanitizeHtml(value, {
-    allowedTags: ['p','br','strong','b','em','i','u','s','span','h2','h3','h4','ul','ol','li','blockquote','a','img','hr','div','table','thead','tbody','tr','th','td','pre','code'],
-    allowedAttributes: { a: ['href','target','rel'], img: ['src','alt'], span: ['class'] },
-    allowedClasses: { span: ['text-size-small','text-size-normal','text-size-large','text-size-xlarge'] },
+  return sanitizeHtml(value.replace(/\u200b/g, ''), {
+    allowedTags: ['p','br','strong','b','em','i','u','s','span','font','h2','h3','h4','ul','ol','li','blockquote','a','img','hr','div','table','thead','tbody','tr','th','td','pre','code'],
+    allowedAttributes: { a: ['href','target','rel'], img: ['src','alt'], span: ['class'], font: ['size'] },
+    allowedClasses: { span: ['text-size-small','text-size-normal','text-size-large','text-size-xlarge','text-size-8pt','text-size-10pt','text-size-12pt','text-size-14pt','text-size-16pt','text-size-18pt','text-size-24pt'] },
     allowedSchemes: ['http','https','mailto'],
     allowedSchemesAppliedToAttributes: ['href'],
-    transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }) },
+    transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }), font: (tag, attributes) => ({ tagName: 'span', attribs: { class: ({ '1':'text-size-8pt', '2':'text-size-10pt', '3':'text-size-12pt', '4':'text-size-14pt', '5':'text-size-16pt', '6':'text-size-18pt', '7':'text-size-24pt' })[attributes.size] || 'text-size-12pt' } }) },
     exclusiveFilter: frame => frame.tag === 'img' && !/^\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)$/.test(frame.attribs.src || '')
   });
 }
