@@ -19,11 +19,12 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character =>
 function cleanHtml(value) {
   return sanitizeHtml(value.replace(/\u200b/g, ''), {
     allowedTags: ['p','br','strong','b','em','i','u','s','span','font','h2','h3','h4','ul','ol','li','blockquote','a','img','hr','div','table','thead','tbody','tr','th','td','pre','code'],
-    allowedAttributes: { a: ['href','target','rel'], img: ['src','alt'], span: ['class'], font: ['size'] },
+    allowedAttributes: { a: ['href','target','rel'], img: ['src','alt'], span: ['class','style'], font: ['size','color'] },
     allowedClasses: { span: ['text-size-small','text-size-normal','text-size-large','text-size-xlarge','text-size-8pt','text-size-10pt','text-size-12pt','text-size-14pt','text-size-16pt','text-size-18pt','text-size-24pt'] },
+    allowedStyles: { span: { color: [/^#[0-9a-f]{6}$/i, /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/], 'background-color': [/^#[0-9a-f]{6}$/i, /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/] } },
     allowedSchemes: ['http','https','mailto'],
     allowedSchemesAppliedToAttributes: ['href'],
-    transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }), font: (tag, attributes) => ({ tagName: 'span', attribs: { class: ({ '1':'text-size-8pt', '2':'text-size-10pt', '3':'text-size-12pt', '4':'text-size-14pt', '5':'text-size-16pt', '6':'text-size-18pt', '7':'text-size-24pt' })[attributes.size] || 'text-size-12pt' } }) },
+    transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }), font: (tag, attributes) => ({ tagName: 'span', attribs: { ...(attributes.size ? { class: ({ '1':'text-size-8pt', '2':'text-size-10pt', '3':'text-size-12pt', '4':'text-size-14pt', '5':'text-size-16pt', '6':'text-size-18pt', '7':'text-size-24pt' })[attributes.size] || 'text-size-12pt' } : {}), ...(/^#[0-9a-f]{6}$/i.test(attributes.color || '') ? { style: `color:${attributes.color}` } : {}) } }) },
     exclusiveFilter: frame => frame.tag === 'img' && !/^\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)$/.test(frame.attribs.src || '')
   });
 }
@@ -102,7 +103,7 @@ createServer(async (request, response) => {
     if (request.method === 'GET' && /^\/(posts|reviews)\/\d+$/.test(path)) {
       const [, collection, id] = path.split('/');
       const row = await storage.getContent(Number(id), collection === 'posts' ? 'post' : 'review');
-      if (!row) return json(response, 404, { error: 'Not found' });
+      if (!row || (row.type === 'review' && row.sample)) return json(response, 404, { error: 'Not found' });
       response.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=60' }); return response.end(articlePage(request, row));
     }
     if (request.method === 'GET' && path === '/robots.txt') {

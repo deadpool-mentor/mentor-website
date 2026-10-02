@@ -146,6 +146,20 @@ $('#fontSize').addEventListener('change', event => {
   event.target.options[0].textContent = event.target.selectedOptions[0].textContent;
   event.target.value = '';
 });
+for (const [selector, command] of [['#textColor','foreColor'], ['#highlightColor','hiliteColor']]) {
+  const picker = $(selector);
+  picker.addEventListener('pointerdown', saveRange);
+  picker.addEventListener('change', () => {
+    if (!$('#htmlSource').hidden) htmlMode(false);
+    restoreRange();
+    if (getSelection().isCollapsed) { $('#contentStatus').textContent = '색을 바꿀 글자를 먼저 선택해 주세요.'; return; }
+    document.execCommand('styleWithCSS', false, true);
+    const applied = document.execCommand(command, false, picker.value);
+    document.execCommand('styleWithCSS', false, false);
+    saveRange();
+    $('#contentStatus').textContent = applied ? '' : '색을 적용하지 못했습니다. 글자를 다시 선택해 주세요.';
+  });
+}
 $('#toggleHtml').addEventListener('click', () => htmlMode($('#htmlSource').hidden));
 $('#insertLink').addEventListener('click', () => { const url = prompt('연결할 링크 주소를 입력해 주세요 (https://...)'); if (!url) return; try { const parsed = new URL(url); if (!['http:','https:'].includes(parsed.protocol)) throw new Error(); } catch { $('#contentStatus').textContent = 'http 또는 https 링크를 입력해 주세요.'; return; } if (!$('#htmlSource').hidden) htmlMode(false); restoreRange(); document.execCommand('createLink', false, url); });
 $('#insertImage').addEventListener('click', () => { if (!$('#htmlSource').hidden) htmlMode(false); $('#imageFile').click(); });
