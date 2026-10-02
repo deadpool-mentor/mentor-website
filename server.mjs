@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import sanitizeHtml from 'sanitize-html';
 import { createStorage } from './storage.mjs';
@@ -13,7 +13,7 @@ const password = process.env.MENTOR_ADMIN_PASSWORD || randomBytes(18).toString('
 const sessionToken = randomBytes(32).toString('base64url');
 const loginAttempts = new Map();
 if (!process.env.MENTOR_ADMIN_PASSWORD) console.log(`관리 화면 암호: ${password}`);
-const files = { '/': ['index.html','text/html; charset=utf-8'], '/index.html': ['index.html','text/html; charset=utf-8'], '/styles.css': ['styles.css','text/css; charset=utf-8'], '/app.js': ['app.js','text/javascript; charset=utf-8'], '/catalog.json': ['catalog.json','application/json; charset=utf-8'], '/logo.svg': ['logo.svg','image/svg+xml'], '/admin': ['admin.html','text/html; charset=utf-8'], '/admin.js': ['admin.js','text/javascript; charset=utf-8'], '/articles/physical-education-cover.svg': ['articles/physical-education-cover.svg','image/svg+xml'], '/articles/physical-education-checklist.svg': ['articles/physical-education-checklist.svg','image/svg+xml'], '/articles/physical-education-consult.svg': ['articles/physical-education-consult.svg','image/svg+xml'], '/articles/mechanical-manager-cover.svg': ['articles/mechanical-manager-cover.svg','image/svg+xml'], '/articles/mechanical-manager-path.svg': ['articles/mechanical-manager-path.svg','image/svg+xml'], '/articles/mechanical-manager-consult.svg': ['articles/mechanical-manager-consult.svg','image/svg+xml'], '/share/home.jpg': ['share/home.jpg','image/jpeg'], '/share/physical-education.jpg': ['share/physical-education.jpg','image/jpeg'], '/share/mechanical-manager.jpg': ['share/mechanical-manager.jpg','image/jpeg'] };
+const files = { '/': ['index.html','text/html; charset=utf-8'], '/index.html': ['index.html','text/html; charset=utf-8'], '/styles.css': ['styles.css','text/css; charset=utf-8'], '/app.js': ['app.js','text/javascript; charset=utf-8'], '/analytics.js': ['analytics.js','text/javascript; charset=utf-8'], '/catalog.json': ['catalog.json','application/json; charset=utf-8'], '/logo.svg': ['logo.svg','image/svg+xml'], '/admin': ['admin.html','text/html; charset=utf-8'], '/admin.js': ['admin.js','text/javascript; charset=utf-8'], '/articles/physical-education-cover.svg': ['articles/physical-education-cover.svg','image/svg+xml'], '/articles/physical-education-checklist.svg': ['articles/physical-education-checklist.svg','image/svg+xml'], '/articles/physical-education-consult.svg': ['articles/physical-education-consult.svg','image/svg+xml'], '/articles/mechanical-manager-cover.svg': ['articles/mechanical-manager-cover.svg','image/svg+xml'], '/articles/mechanical-manager-path.svg': ['articles/mechanical-manager-path.svg','image/svg+xml'], '/articles/mechanical-manager-consult.svg': ['articles/mechanical-manager-consult.svg','image/svg+xml'], '/share/home.jpg': ['share/home.jpg','image/jpeg'], '/share/physical-education.jpg': ['share/physical-education.jpg','image/jpeg'], '/share/mechanical-manager.jpg': ['share/mechanical-manager.jpg','image/jpeg'] };
 const isAllowedImage = source => /^\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)$/.test(source || '') || (source?.startsWith('/articles/') && files[source]?.[1] === 'image/svg+xml');
 function json(response, status, value) { response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(value)); }
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[character]);
@@ -80,7 +80,7 @@ function articlePage(request, row) {
   const structuredDataScript = `<script type="application/ld+json">${jsonLd(structured)}</script>`;
   const bodyHtml = contentHtml(row);
   const markedBody = row.type === 'review' ? bodyHtml.replace(/<img\b[^>]*>/gi, image => `<div class="review-evidence">${image}<span class="review-watermark" aria-hidden="true"><img src="/logo.svg" alt="">정수멘토</span></div>`) : bodyHtml;
-  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${row.sample ? 'noindex,follow' : 'index,follow'}"><link rel="canonical" href="${escapeHtml(url)}"><meta property="og:type" content="article"><meta property="og:site_name" content="정수멘토"><meta property="og:locale" content="ko_KR"><meta property="og:title" content="${escapeHtml(row.title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(url)}">${shareImageTags(originUrl(request), shareImage, row.title)}${structuredDataScript}<link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.svg" type="image/svg+xml"></head><body class="article-page"><header class="article-header"><a class="brand" href="/"><img class="brand-mark" src="/logo.svg" alt=""><span>정수멘토<small>JUNGSOO MENTOR</small></span></a><a href="/#${row.type === 'review' ? 'reviews' : 'board'}">목록으로 ↗</a></header><main class="article-main"><span class="eyebrow">${category} · ${escapeHtml(row.category)}${row.sample ? ' · 예시' : ''}</span><h1>${escapeHtml(row.title)}</h1><time datetime="${escapeHtml(row.created_at)}">${escapeHtml(row.created_at.slice(0,10))}</time>${row.cover_image ? `<img class="article-cover" src="${escapeHtml(row.cover_image)}" alt="">` : ''}<div class="article-body">${markedBody}</div>${row.sample ? `<p class="article-sample">${row.type === 'review' ? '화면 구성 예시입니다. 실제 학생 후기가 아닙니다.' : '화면 구성 예시 글입니다. 실제 교육과정 정보로 교체해 주세요.'}</p>` : ''}<a class="button button-dark" href="/#consult">무료 학습계획표 상담 ↗</a></main><a class="kakao-float" href="https://open.kakao.com/o/sfAip6Mi" target="_blank" rel="noopener noreferrer" aria-label="카카오톡 상담하기"><span class="kakao-icon">TALK</span><span>카카오톡<br>상담하기</span></a></body></html>`;
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${row.sample ? 'noindex,follow' : 'index,follow'}"><link rel="canonical" href="${escapeHtml(url)}"><meta property="og:type" content="article"><meta property="og:site_name" content="정수멘토"><meta property="og:locale" content="ko_KR"><meta property="og:title" content="${escapeHtml(row.title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(url)}">${shareImageTags(originUrl(request), shareImage, row.title)}${structuredDataScript}<link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.svg" type="image/svg+xml"><script src="/analytics.js" defer></script></head><body class="article-page"><header class="article-header"><a class="brand" href="/"><img class="brand-mark" src="/logo.svg" alt=""><span>정수멘토<small>JUNGSOO MENTOR</small></span></a><a href="/#${row.type === 'review' ? 'reviews' : 'board'}">목록으로 ↗</a></header><main class="article-main"><span class="eyebrow">${category} · ${escapeHtml(row.category)}${row.sample ? ' · 예시' : ''}</span><h1>${escapeHtml(row.title)}</h1><time datetime="${escapeHtml(row.created_at)}">${escapeHtml(row.created_at.slice(0,10))}</time>${row.cover_image ? `<img class="article-cover" src="${escapeHtml(row.cover_image)}" alt="">` : ''}<div class="article-body">${markedBody}</div>${row.sample ? `<p class="article-sample">${row.type === 'review' ? '화면 구성 예시입니다. 실제 학생 후기가 아닙니다.' : '화면 구성 예시 글입니다. 실제 교육과정 정보로 교체해 주세요.'}</p>` : ''}<a class="button button-dark" href="/#consult">무료 학습계획표 상담 ↗</a></main><a class="kakao-float" href="https://open.kakao.com/o/sfAip6Mi" target="_blank" rel="noopener noreferrer" aria-label="카카오톡 상담하기"><span class="kakao-icon">TALK</span><span>카카오톡<br>상담하기</span></a></body></html>`;
 }
 async function readUpload(request) { const chunks = []; let size = 0; for await (const chunk of request) { size += chunk.length; if (size > 5_000_000) throw new Error('Too large'); chunks.push(chunk); } return Buffer.concat(chunks); }
 function imageExtension(data, type) {
@@ -109,9 +109,12 @@ async function storeEmbeddedImages(html) {
   return html;
 }
 function sameOrigin(request) { const origin = request.headers.origin; return !origin || [`http://${request.headers.host}`, `https://${request.headers.host}`].includes(origin); }
+function cookieValue(request, name) { return (request.headers.cookie || '').split(';').map(part => part.trim()).find(part => part.startsWith(`${name}=`))?.slice(name.length + 1) || ''; }
+function visitorHash(id) { return createHash('sha256').update(id).digest('hex'); }
+function koreaDay(date = new Date()) { const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date); const value = key => parts.find(part => part.type === key).value; return `${value('year')}-${value('month')}-${value('day')}`; }
+function recentDays(count) { const today = new Date(`${koreaDay()}T00:00:00Z`); return Array.from({ length: count }, (_, index) => new Date(today.getTime() - (count - 1 - index) * 86400000).toISOString().slice(0, 10)); }
 function authorized(request) {
-  const cookie = (request.headers.cookie || '').split(';').map(part => part.trim()).find(part => part.startsWith('mentor_session='));
-  const actual = Buffer.from(cookie?.slice('mentor_session='.length) || ''), expected = Buffer.from(sessionToken);
+  const actual = Buffer.from(cookieValue(request, 'mentor_session')), expected = Buffer.from(sessionToken);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 async function readBody(request, maxSize = 100_000) { const chunks = []; let size = 0; for await (const chunk of request) { size += chunk.length; if (size > maxSize) throw new Error('Too large'); chunks.push(chunk); } return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
@@ -146,6 +149,17 @@ createServer(async (request, response) => {
       const pages = [{ url: `${originUrl(request)}/` }, ...rows.map(row => ({ url: `${originUrl(request)}/${row.type === 'review' ? 'reviews' : 'posts'}/${row.id}`, date: row.updated_at }))];
       response.writeHead(200, { 'Content-Type':'application/xml; charset=utf-8' }); return response.end(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pages.map(page => `<url><loc>${escapeHtml(page.url)}</loc>${page.date ? `<lastmod>${page.date.slice(0,10)}</lastmod>` : ''}</url>`).join('')}</urlset>`);
     }
+    if (request.method === 'POST' && path === '/api/analytics/view') {
+      if (!sameOrigin(request)) return json(response, 403, { error: 'Forbidden' });
+      if (authorized(request) || cookieValue(request, 'mentor_analytics_excluded') === '1' || /bot|crawler|spider|preview|kakaoscrap|facebookexternalhit/i.test(request.headers['user-agent'] || '')) { response.writeHead(204); return response.end(); }
+      const data = await readBody(request, 500), viewedPath = String(data.path || '');
+      if (!/^\/$|^\/(?:posts|reviews)\/\d+$/.test(viewedPath)) return json(response, 400, { error: 'Invalid page' });
+      const existingId = cookieValue(request, 'mentor_visitor');
+      const visitorId = /^[a-f0-9]{32}$/.test(existingId) ? existingId : randomBytes(16).toString('hex');
+      await storage.recordPageView({ day: koreaDay(), path: viewedPath, visitor_hash: visitorHash(visitorId) });
+      const cookie = existingId === visitorId ? [] : [`mentor_visitor=${visitorId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`];
+      response.writeHead(204, { 'Cache-Control': 'no-store', ...(cookie.length ? { 'Set-Cookie': cookie } : {}) }); return response.end();
+    }
     if (request.method === 'POST' && path === '/api/admin/login') {
       if (!sameOrigin(request)) return json(response, 403, { error: 'Forbidden' });
       const now = Date.now(), attempts = loginAttempts.get(request.socket.remoteAddress) || [];
@@ -154,8 +168,16 @@ createServer(async (request, response) => {
       const data = await readBody(request), actual = Buffer.from(String(data.password || '')), expected = Buffer.from(password);
       if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) { recent.push(now); loginAttempts.set(request.socket.remoteAddress, recent); return json(response, 401, { error: 'Wrong password' }); }
       loginAttempts.delete(request.socket.remoteAddress);
-      response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Set-Cookie': `mentor_session=${sessionToken}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}` });
+      const visitorId = cookieValue(request, 'mentor_visitor');
+      if (/^[a-f0-9]{32}$/.test(visitorId)) try { await storage.removeAnalyticsVisitor(visitorHash(visitorId)); } catch (error) { console.error('Could not remove administrator visits', error); }
+      response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Set-Cookie': [`mentor_session=${sessionToken}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`, `mentor_analytics_excluded=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`] });
       return response.end('{"ok":true}');
+    }
+    if (request.method === 'GET' && path === '/api/admin/analytics') {
+      if (!authorized(request)) return json(response, 401, { error: 'Unauthorized' });
+      const days = recentDays(7), rows = await storage.listPublishedContent();
+      const pages = [{ path: '/', title: '홈페이지' }, ...rows.slice(0, 30).map(row => ({ path: `/${row.type === 'review' ? 'reviews' : 'posts'}/${row.id}`, title: row.title }))];
+      return json(response, 200, await storage.getAnalytics(days, pages));
     }
     if (request.method === 'POST' && path === '/api/consultations') {
       if (!sameOrigin(request)) return json(response, 403, { error: 'Forbidden' });
