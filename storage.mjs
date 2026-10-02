@@ -12,6 +12,10 @@ function localStorage() {
     db.exec('CREATE TABLE IF NOT EXISTS consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, name TEXT NOT NULL, phone TEXT NOT NULL, goal TEXT NOT NULL, education TEXT NOT NULL, message TEXT NOT NULL, calculator TEXT)');
     const contentExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='content_entries'").get();
     db.exec("CREATE TABLE IF NOT EXISTS content_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, category TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)");
+    db.exec('CREATE TABLE IF NOT EXISTS analytics_page_views (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, path TEXT NOT NULL, visitor_hash TEXT NOT NULL)');
+    db.exec('CREATE INDEX IF NOT EXISTS analytics_page_views_day_path ON analytics_page_views (day, path)');
+    db.exec('CREATE INDEX IF NOT EXISTS analytics_page_views_visitor ON analytics_page_views (visitor_hash)');
+    db.exec('CREATE TABLE IF NOT EXISTS analytics_daily_visitors (day TEXT NOT NULL, visitor_hash TEXT NOT NULL, PRIMARY KEY (day, visitor_hash))');
     if (!db.prepare('PRAGMA table_info(content_entries)').all().some(column => column.name === 'format')) db.exec("ALTER TABLE content_entries ADD COLUMN format TEXT NOT NULL DEFAULT 'text'");
     if (!db.prepare('PRAGMA table_info(content_entries)').all().some(column => column.name === 'cover_image')) db.exec('ALTER TABLE content_entries ADD COLUMN cover_image TEXT');
     if (!contentExists) {
@@ -43,7 +47,25 @@ function localStorage() {
         const result = db.prepare('UPDATE content_entries SET type=?, category=?, title=?, body=?, format=?, cover_image=?, sample=0, updated_at=? WHERE id=?').run(row.type, row.category, row.title, row.body, row.format, row.cover_image, row.updated_at, id);
         return Boolean(result.changes);
       },
-      async deleteContent(id) { return Boolean(db.prepare('DELETE FROM content_entries WHERE id=?').run(id).changes); }
+      async deleteContent(id) { return Boolean(db.prepare('DELETE FROM content_entries WHERE id=?').run(id).changes); },
+      async recordPageView({ day, path, visitor_hash }) {
+        db.exec('BEGIN');
+        try {
+          db.prepare('INSERT OR IGNORE INTO analytics_daily_visitors (day, visitor_hash) VALUES (?, ?)').run(day, visitor_hash);
+          db.prepare('INSERT INTO analytics_page_views (day, path, visitor_hash) VALUES (?, ?, ?)').run(day, path, visitor_hash);
+          db.exec('COMMIT');
+        } catch (error) { db.exec('ROLLBACK'); throw error; }
+      },
+      async removeAnalyticsVisitor(hash) {
+        db.prepare('DELETE FROM analytics_page_views WHERE visitor_hash=?').run(hash);
+        db.prepare('DELETE FROM analytics_daily_visitors WHERE visitor_hash=?').run(hash);
+      },
+      async getAnalytics(days, pages) {
+        const viewCount = db.prepare('SELECT count(*) AS total FROM analytics_page_views WHERE day=?');
+        const visitorCount = db.prepare('SELECT count(*) AS total FROM analytics_daily_visitors WHERE day=?');
+        const pageCount = db.prepare('SELECT count(*) AS total FROM analytics_page_views WHERE day>=? AND path=?');
+        return { days: days.map(day => ({ day, views: viewCount.get(day).total, visitors: visitorCount.get(day).total })), pages: pages.map(page => ({ ...page, views: pageCount.get(days[0], page.path).total })) };
+      }
     };
   })();
 }
@@ -71,7 +93,28 @@ async function supabaseStorage() {
     async getContent(id, type) { return result(await client.from('content_entries').select('*').eq('id', id).eq('type', type).maybeSingle()) || null; },
     async insertContent(row) { return result(await client.from('content_entries').insert({ ...row, sample: false }).select('id').single()).id; },
     async updateContent(id, row) { return Boolean(result(await client.from('content_entries').update({ ...row, sample: false }).eq('id', id).select('id').maybeSingle())); },
-    async deleteContent(id) { return Boolean(result(await client.from('content_entries').delete().eq('id', id).select('id').maybeSingle())); }
+    async deleteContent(id) { return Boolean(result(await client.from('content_entries').delete().eq('id', id).select('id').maybeSingle())); },
+    async recordPageView(row) {
+      const unique = await client.from('analytics_daily_visitors').insert({ day: row.day, visitor_hash: row.visitor_hash });
+      if (unique.error && unique.error.code !== '23505') throw unique.error;
+      result(await client.from('analytics_page_views').insert(row));
+    },
+    async removeAnalyticsVisitor(hash) {
+      result(await client.from('analytics_page_views').delete().eq('visitor_hash', hash));
+      result(await client.from('analytics_daily_visitors').delete().eq('visitor_hash', hash));
+    },
+    async getAnalytics(days, pages) {
+      const countRows = async (table, filter) => {
+        let query = client.from(table).select('*', { count: 'exact', head: true });
+        query = filter(query);
+        const response = await query;
+        if (response.error) throw response.error;
+        return response.count || 0;
+      };
+      const daily = await Promise.all(days.map(async day => ({ day, views: await countRows('analytics_page_views', query => query.eq('day', day)), visitors: await countRows('analytics_daily_visitors', query => query.eq('day', day)) })));
+      const pageCounts = await Promise.all(pages.map(async page => ({ ...page, views: await countRows('analytics_page_views', query => query.gte('day', days[0]).eq('path', page.path)) })));
+      return { days: daily, pages: pageCounts };
+    }
   };
 }
 
