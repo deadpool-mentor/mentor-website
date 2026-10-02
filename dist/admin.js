@@ -46,12 +46,12 @@ async function refresh() {
 let contentEntries = [];
 let savedRange = null;
 function htmlMode(on) {
-  if (on) $('#htmlSource').value = $('#richBody').innerHTML;
+  if (on) $('#htmlSource').value = $('#richBody').innerHTML.replace(/\u200b/g, '');
   else if (!$('#htmlSource').hidden) $('#richBody').innerHTML = $('#htmlSource').value;
   $('#richBody').hidden = on; $('#htmlSource').hidden = !on;
   $('#toggleHtml').setAttribute('aria-pressed', String(on));
 }
-function resetEditor() { $('#contentForm').reset(); $('#contentForm [name="id"]').value = ''; htmlMode(false); $('#richBody').replaceChildren(); $('#htmlSource').value = ''; $('#coverPreview').hidden = true; $('#coverPreview').removeAttribute('src'); $('#editorHeading').textContent = '새 글 작성'; $('#contentStatus').textContent = ''; }
+function resetEditor() { $('#contentForm').reset(); $('#contentForm [name="id"]').value = ''; htmlMode(false); $('#richBody').replaceChildren(); $('#htmlSource').value = ''; savedRange = null; $('#coverPreview').hidden = true; $('#coverPreview').removeAttribute('src'); $('#editorHeading').textContent = '새 글 작성'; $('#contentStatus').textContent = ''; }
 function editEntry(entry) {
   const form = $('#contentForm');
   for (const key of ['id','type','category','title']) form.elements.namedItem(key).value = key === 'category' ? entry[key].replace(/\s+/g, '') : entry[key];
@@ -59,6 +59,7 @@ function editEntry(entry) {
   htmlMode(false);
   if (entry.format === 'html') $('#richBody').innerHTML = entry.body;
   else { const paragraph = document.createElement('p'); paragraph.textContent = entry.body; $('#richBody').replaceChildren(paragraph); }
+  savedRange = null;
   $('#editorHeading').textContent = '글 수정'; $('#contentStatus').textContent = entry.sample ? '예시 글을 수정해 저장하면 예시 표시가 사라집니다.' : '';
   form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -87,7 +88,7 @@ async function loadAdminContent() {
 $('#contentForm').addEventListener('submit', async event => {
   event.preventDefault(); const form = event.currentTarget, data = new FormData(form), id = String(data.get('id') || '');
   const payload = Object.fromEntries(['type','category','title','cover_image'].map(key => [key, String(data.get(key) || '').trim()]));
-  payload.body = ($('#htmlSource').hidden ? $('#richBody').innerHTML : $('#htmlSource').value).trim(); payload.format = 'html';
+  payload.body = ($('#htmlSource').hidden ? $('#richBody').innerHTML : $('#htmlSource').value).replace(/\u200b/g, '').trim(); payload.format = 'html';
   const draft = new DOMParser().parseFromString(payload.body, 'text/html');
   if (!draft.body.textContent.trim() && !draft.body.querySelector('img')) { $('#contentStatus').textContent = '본문을 입력해 주세요.'; return; }
   const button = form.querySelector('button[type="submit"]'); button.disabled = true; $('#contentStatus').textContent = '저장하는 중입니다.';
@@ -113,25 +114,37 @@ $('#contentForm').addEventListener('submit', async event => {
   finally { button.disabled = false; }
 });
 $('#resetEditor').addEventListener('click', resetEditor);
-$('#richBody').addEventListener('mouseup', () => { const selection = getSelection(); if (selection.rangeCount) savedRange = selection.getRangeAt(0).cloneRange(); });
-$('#richBody').addEventListener('keyup', () => { const selection = getSelection(); if (selection.rangeCount) savedRange = selection.getRangeAt(0).cloneRange(); });
-function restoreRange() { $('#richBody').focus(); if (savedRange && $('#richBody').contains(savedRange.commonAncestorContainer)) { const selection = getSelection(); selection.removeAllRanges(); selection.addRange(savedRange); } }
-document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', () => { if (!$('#htmlSource').hidden) htmlMode(false); restoreRange(); document.execCommand(button.dataset.command, false, button.dataset.value || null); $('#richBody').focus(); }));
+function saveRange() {
+  const selection = getSelection();
+  if (selection?.rangeCount && $('#richBody').contains(selection.getRangeAt(0).commonAncestorContainer)) savedRange = selection.getRangeAt(0).cloneRange();
+}
+function restoreRange() {
+  const editor = $('#richBody');
+  editor.focus({ preventScroll: true });
+  const range = savedRange && editor.contains(savedRange.commonAncestorContainer) ? savedRange : document.createRange();
+  if (range !== savedRange) { range.selectNodeContents(editor); range.collapse(false); }
+  const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+}
+for (const eventName of ['mouseup','keyup','input','click']) $('#richBody').addEventListener(eventName, saveRange);
+document.addEventListener('selectionchange', saveRange);
+document.querySelectorAll('.rich-toolbar button:not(#toggleHtml)').forEach(button => button.addEventListener('mousedown', event => { event.preventDefault(); saveRange(); }));
+$('#fontSize').addEventListener('pointerdown', saveRange);
+document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', () => {
+  if (!$('#htmlSource').hidden) htmlMode(false);
+  restoreRange();
+  const inlineTag = { bold:'strong', italic:'em', underline:'u' }[button.dataset.command];
+  if (inlineTag && getSelection().isCollapsed) { $('#contentStatus').textContent = '서식을 적용할 글자를 먼저 선택해 주세요.'; return; }
+  document.execCommand(button.dataset.command, false, button.dataset.value || null); saveRange();
+}));
 $('#fontSize').addEventListener('change', event => {
   const size = event.target.value;
   if (!size) return;
   if (!$('#htmlSource').hidden) htmlMode(false);
   restoreRange();
-  if (getSelection()?.isCollapsed) { $('#contentStatus').textContent = '크기를 바꿀 글자를 먼저 선택해 주세요.'; event.target.value = ''; return; }
-  document.execCommand('fontSize', false, size);
-  const classes = { '2':'text-size-small', '3':'text-size-normal', '4':'text-size-large', '5':'text-size-xlarge' };
-  for (const font of $('#richBody').querySelectorAll('font[size]')) {
-    const span = document.createElement('span'); span.className = classes[font.getAttribute('size')] || 'text-size-normal';
-    while (font.firstChild) span.append(font.firstChild);
-    font.replaceWith(span);
-  }
+  if (getSelection().isCollapsed) { $('#contentStatus').textContent = '크기를 바꿀 글자를 먼저 선택해 주세요.'; event.target.value = ''; return; }
+  document.execCommand('fontSize', false, size); saveRange();
+  event.target.options[0].textContent = event.target.selectedOptions[0].textContent;
   event.target.value = '';
-  $('#richBody').focus();
 });
 $('#toggleHtml').addEventListener('click', () => htmlMode($('#htmlSource').hidden));
 $('#insertLink').addEventListener('click', () => { const url = prompt('연결할 링크 주소를 입력해 주세요 (https://...)'); if (!url) return; try { const parsed = new URL(url); if (!['http:','https:'].includes(parsed.protocol)) throw new Error(); } catch { $('#contentStatus').textContent = 'http 또는 https 링크를 입력해 주세요.'; return; } if (!$('#htmlSource').hidden) htmlMode(false); restoreRange(); document.execCommand('createLink', false, url); });
