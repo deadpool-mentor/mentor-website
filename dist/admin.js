@@ -26,6 +26,29 @@ function show(application) {
   for (const semester of data.semesters || []) detail.append(entries(`${semester.id}학기 수강 계획`, semester.items || []));
   if (plan.warnings?.length) { const warnings = item('section', '', 'admin-entry-group'); warnings.append(item('h3', '계산기 확인 사항')); for (const warning of plan.warnings) warnings.append(item('p', warning)); detail.append(warnings); }
 }
+async function loadAnalytics() {
+  $('#analyticsStatus').textContent = '방문 통계를 불러오는 중입니다.';
+  try {
+    const response = await fetch('/api/admin/analytics', { cache: 'no-store' });
+    if (!response.ok) throw new Error('Analytics unavailable');
+    const { days, pages } = await response.json();
+    const today = days.at(-1) || { views: 0, visitors: 0 };
+    const lastSevenViews = days.reduce((sum, day) => sum + day.views, 0);
+    const summary = $('#analyticsSummary'); summary.replaceChildren();
+    for (const [label, value] of [['오늘 방문자', today.visitors], ['오늘 조회수', today.views], ['최근 7일 조회수', lastSevenViews]]) {
+      const card = item('div', '', 'analytics-card'); card.append(item('span', label), item('strong', Number(value).toLocaleString('ko-KR'))); summary.append(card);
+    }
+    const dayList = $('#analyticsDays'); dayList.replaceChildren();
+    for (const day of [...days].reverse()) {
+      const row = item('div', '', 'analytics-row'); row.append(item('span', day.day), item('span', `방문자 ${day.visitors.toLocaleString('ko-KR')}`), item('strong', `조회 ${day.views.toLocaleString('ko-KR')}`)); dayList.append(row);
+    }
+    const pageList = $('#analyticsPages'); pageList.replaceChildren();
+    for (const page of pages.sort((a, b) => b.views - a.views)) {
+      const row = item('div', '', 'analytics-row'); row.append(item('span', page.title), item('strong', `${page.views.toLocaleString('ko-KR')}회`)); pageList.append(row);
+    }
+    $('#analyticsStatus').textContent = '통계는 기능 적용 후부터 쌓입니다. 같은 IP의 다른 브라우저는 각각 집계됩니다.';
+  } catch { $('#analyticsStatus').textContent = '방문 통계를 불러오지 못했습니다. 잠시 후 새로고침해 주세요.'; }
+}
 async function refresh() {
   $('#adminStatus').textContent = '신청 내역을 불러오는 중입니다.';
   try {
@@ -33,6 +56,7 @@ async function refresh() {
     if (response.status === 401) { $('#adminMain').hidden = true; $('#adminLogin').hidden = false; return; }
     if (!response.ok) throw new Error('Load failed'); applications = await response.json();
     $('#adminLogin').hidden = true; $('#adminMain').hidden = false;
+    void loadAnalytics();
     $('#adminStatus').textContent = `총 ${applications.length}건의 신청`; $('#adminList').replaceChildren();
     for (const application of applications) {
       const button = item('button', '', 'admin-list-item'); button.type = 'button';
