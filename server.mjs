@@ -18,8 +18,9 @@ function json(response, status, value) { response.writeHead(status, { 'Content-T
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[character]);
 function cleanHtml(value) {
   return sanitizeHtml(value, {
-    allowedTags: ['p','br','strong','b','em','i','u','s','h2','h3','h4','ul','ol','li','blockquote','a','img','hr','div','table','thead','tbody','tr','th','td','pre','code'],
-    allowedAttributes: { a: ['href','target','rel'], img: ['src','alt'] },
+    allowedTags: ['p','br','strong','b','em','i','u','s','span','h2','h3','h4','ul','ol','li','blockquote','a','img','hr','div','table','thead','tbody','tr','th','td','pre','code'],
+    allowedAttributes: { a: ['href','target','rel'], img: ['src','alt'], span: ['class'] },
+    allowedClasses: { span: ['text-size-small','text-size-normal','text-size-large','text-size-xlarge'] },
     allowedSchemes: ['http','https','mailto'],
     allowedSchemesAppliedToAttributes: ['href'],
     transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }) },
@@ -29,12 +30,24 @@ function cleanHtml(value) {
 const plain = row => row.format === 'html' ? sanitizeHtml(row.body, { allowedTags: [], allowedAttributes: {} }) : row.body;
 const contentHtml = row => row.format === 'html' ? cleanHtml(row.body) : `<p>${escapeHtml(row.body).replace(/\n/g, '<br>')}</p>`;
 function originUrl(request) { if (process.env.PUBLIC_SITE_URL) return new URL(process.env.PUBLIC_SITE_URL).origin; const host = request.headers.host || 'localhost'; return `${process.env.NODE_ENV === 'production' ? 'https' : 'http'}://${host}`; }
+const jsonLd = value => JSON.stringify(value).replace(/</g, '\\u003c');
+async function homePage(request) {
+  const origin = originUrl(request);
+  const rows = await storage.listPublishedContent();
+  const posts = rows.filter(row => row.type === 'post').map(row => `<a class="post" href="/posts/${row.id}"><span class="post-tag">${escapeHtml(row.category)}</span><span class="post-title">${escapeHtml(row.title)}</span><span class="post-date">${escapeHtml(row.created_at.slice(0,10))}</span></a>`).join('');
+  const reviews = rows.filter(row => row.type === 'review').map(row => `<a class="review" href="/reviews/${row.id}"><span>${escapeHtml(row.category)}</span><h3>${escapeHtml(row.title)}</h3><p>${escapeHtml(plain(row).replace(/\s+/g, ' ').slice(0,150))}</p></a>`).join('');
+  const structured = { '@context':'https://schema.org', '@type':'WebSite', name:'정수멘토', url:`${origin}/`, inLanguage:'ko-KR', description:'학점은행제 학위·편입·자격증 안내와 학점계산기, 무료 학습계획표 상담' };
+  const file = await readFile(resolve(assetDir, 'index.html'), 'utf8');
+  return file.replace('</head>', `<link rel="canonical" href="${escapeHtml(origin)}/"><meta property="og:type" content="website"><meta property="og:site_name" content="정수멘토"><meta property="og:locale" content="ko_KR"><meta property="og:url" content="${escapeHtml(origin)}/"><meta property="og:title" content="정수멘토 | 나에게 맞는 학점은행제 플랜"><meta property="og:description" content="학점은행제 학위·편입·자격증 안내와 학점계산기, 무료 학습계획표 상담"><script type="application/ld+json">${jsonLd(structured)}</script></head>`).replace('<div id="postList" class="post-list"></div>', `<div id="postList" class="post-list">${posts}</div>`).replace('<div class="review-grid" id="reviewGrid"></div>', `<div class="review-grid" id="reviewGrid">${reviews}</div>`);
+}
 function articlePage(request, row) {
   const url = `${originUrl(request)}/${row.type === 'review' ? 'reviews' : 'posts'}/${row.id}`;
   const title = `${row.title} | 정수멘토`;
   const description = plain(row).replace(/\s+/g, ' ').slice(0, 150);
   const category = row.type === 'review' ? '학생 후기' : '교육과정 안내';
-  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${row.sample ? 'noindex,follow' : 'index,follow'}"><link rel="canonical" href="${escapeHtml(url)}"><meta property="og:type" content="article"><meta property="og:title" content="${escapeHtml(row.title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(url)}">${row.cover_image ? `<meta property="og:image" content="${escapeHtml(originUrl(request) + row.cover_image)}">` : ''}<link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.svg" type="image/svg+xml"></head><body class="article-page"><header class="article-header"><a class="brand" href="/"><img class="brand-mark" src="/logo.svg" alt=""><span>정수멘토<small>JUNGSOO MENTOR</small></span></a><a href="/#${row.type === 'review' ? 'reviews' : 'board'}">목록으로 ↗</a></header><main class="article-main"><span class="eyebrow">${category} · ${escapeHtml(row.category)}${row.sample ? ' · 예시' : ''}</span><h1>${escapeHtml(row.title)}</h1><time datetime="${escapeHtml(row.created_at)}">${escapeHtml(row.created_at.slice(0,10))}</time>${row.cover_image ? `<img class="article-cover" src="${escapeHtml(row.cover_image)}" alt="">` : ''}<div class="article-body">${contentHtml(row)}</div>${row.sample ? `<p class="article-sample">${row.type === 'review' ? '화면 구성 예시입니다. 실제 학생 후기가 아닙니다.' : '화면 구성 예시 글입니다. 실제 교육과정 정보로 교체해 주세요.'}</p>` : ''}<a class="button button-dark" href="/#consult">무료 학습계획표 상담 ↗</a></main><a class="kakao-float" href="https://open.kakao.com/o/sfAip6Mi" target="_blank" rel="noopener noreferrer" aria-label="카카오톡 상담하기"><span class="kakao-icon">TALK</span><span>카카오톡<br>상담하기</span></a></body></html>`;
+  const structured = { '@context':'https://schema.org', '@type':row.type === 'review' ? 'Article' : 'BlogPosting', headline:row.title, description, inLanguage:'ko-KR', datePublished:row.created_at, dateModified:row.updated_at, mainEntityOfPage:url, author:{ '@type':'Person', name:'정수멘토' }, publisher:{ '@type':'Organization', name:'정수멘토', url:`${originUrl(request)}/` }, ...(row.cover_image ? { image:`${originUrl(request)}${row.cover_image}` } : {}) };
+  const structuredDataScript = `<script type="application/ld+json">${jsonLd(structured)}</script>`;
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${row.sample ? 'noindex,follow' : 'index,follow'}"><link rel="canonical" href="${escapeHtml(url)}"><meta property="og:type" content="article"><meta property="og:title" content="${escapeHtml(row.title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(url)}">${row.cover_image ? `<meta property="og:image" content="${escapeHtml(originUrl(request) + row.cover_image)}">` : ''}${structuredDataScript}<link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.svg" type="image/svg+xml"></head><body class="article-page"><header class="article-header"><a class="brand" href="/"><img class="brand-mark" src="/logo.svg" alt=""><span>정수멘토<small>JUNGSOO MENTOR</small></span></a><a href="/#${row.type === 'review' ? 'reviews' : 'board'}">목록으로 ↗</a></header><main class="article-main"><span class="eyebrow">${category} · ${escapeHtml(row.category)}${row.sample ? ' · 예시' : ''}</span><h1>${escapeHtml(row.title)}</h1><time datetime="${escapeHtml(row.created_at)}">${escapeHtml(row.created_at.slice(0,10))}</time>${row.cover_image ? `<img class="article-cover" src="${escapeHtml(row.cover_image)}" alt="">` : ''}<div class="article-body">${contentHtml(row)}</div>${row.sample ? `<p class="article-sample">${row.type === 'review' ? '화면 구성 예시입니다. 실제 학생 후기가 아닙니다.' : '화면 구성 예시 글입니다. 실제 교육과정 정보로 교체해 주세요.'}</p>` : ''}<a class="button button-dark" href="/#consult">무료 학습계획표 상담 ↗</a></main><a class="kakao-float" href="https://open.kakao.com/o/sfAip6Mi" target="_blank" rel="noopener noreferrer" aria-label="카카오톡 상담하기"><span class="kakao-icon">TALK</span><span>카카오톡<br>상담하기</span></a></body></html>`;
 }
 async function readUpload(request) { const chunks = []; let size = 0; for await (const chunk of request) { size += chunk.length; if (size > 5_000_000) throw new Error('Too large'); chunks.push(chunk); } return Buffer.concat(chunks); }
 function imageExtension(data, type) {
@@ -97,8 +110,8 @@ createServer(async (request, response) => {
     }
     if (request.method === 'GET' && path === '/sitemap.xml') {
       const rows = await storage.listPublishedContent();
-      const pages = [{ url: `${originUrl(request)}/`, date: new Date().toISOString() }, ...rows.map(row => ({ url: `${originUrl(request)}/${row.type === 'review' ? 'reviews' : 'posts'}/${row.id}`, date: row.updated_at }))];
-      response.writeHead(200, { 'Content-Type':'application/xml; charset=utf-8' }); return response.end(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pages.map(page => `<url><loc>${escapeHtml(page.url)}</loc><lastmod>${page.date.slice(0,10)}</lastmod></url>`).join('')}</urlset>`);
+      const pages = [{ url: `${originUrl(request)}/` }, ...rows.map(row => ({ url: `${originUrl(request)}/${row.type === 'review' ? 'reviews' : 'posts'}/${row.id}`, date: row.updated_at }))];
+      response.writeHead(200, { 'Content-Type':'application/xml; charset=utf-8' }); return response.end(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pages.map(page => `<url><loc>${escapeHtml(page.url)}</loc>${page.date ? `<lastmod>${page.date.slice(0,10)}</lastmod>` : ''}</url>`).join('')}</urlset>`);
     }
     if (request.method === 'POST' && path === '/api/admin/login') {
       if (!sameOrigin(request)) return json(response, 403, { error: 'Forbidden' });
@@ -152,7 +165,9 @@ createServer(async (request, response) => {
       return json(response, updated ? 200 : 404, { ok: updated });
     }
     if (request.method !== 'GET' || !files[path]) return json(response, 404, { error: 'Not found' });
+    if (path === '/' || path === '/index.html') { response.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=60' }); return response.end(await homePage(request)); }
     const [filename, type] = files[path], file = await readFile(resolve(assetDir, filename));
     response.writeHead(200, { 'Content-Type': type, 'Cache-Control': ['/admin','/admin.js'].includes(path) ? 'no-store' : 'public, max-age=60' }); response.end(file);
   } catch (error) { console.error(error); json(response, error.status || (error.message === 'Too large' ? 413 : 500), { error: error.status ? error.message : error.message === 'Too large' ? '요청 크기가 너무 큽니다. 이미지를 줄이거나 편집기의 이미지 버튼으로 올려 주세요.' : 'Request failed' }); }
 }).listen(Number(process.env.PORT || 8123), process.env.PORT ? '0.0.0.0' : '127.0.0.1', () => console.log(`Server listening on port ${process.env.PORT || 8123}`));
+

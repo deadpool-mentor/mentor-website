@@ -33,7 +33,7 @@ function localStorage() {
         return db.prepare('SELECT id, created_at, name, phone, goal, education, message, calculator FROM consultations ORDER BY id DESC LIMIT 500').all().map(row => ({ ...row, calculator: row.calculator ? JSON.parse(row.calculator) : null }));
       },
       async listContent() { return db.prepare('SELECT id, type, category, title, body, format, cover_image, sample, created_at, updated_at FROM content_entries ORDER BY id DESC').all(); },
-      async listPublishedContent() { return db.prepare('SELECT id, type, updated_at FROM content_entries WHERE sample=0 ORDER BY id DESC').all(); },
+      async listPublishedContent() { return db.prepare('SELECT id, type, category, title, body, format, created_at, updated_at FROM content_entries WHERE sample=0 ORDER BY id DESC').all(); },
       async getContent(id, type) { return db.prepare('SELECT * FROM content_entries WHERE id=? AND type=?').get(id, type); },
       async insertContent(row) {
         const result = db.prepare('INSERT INTO content_entries (type, category, title, body, format, cover_image, sample, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)').run(row.type, row.category, row.title, row.body, row.format, row.cover_image, row.created_at, row.updated_at);
@@ -67,7 +67,7 @@ async function supabaseStorage() {
     async insertConsultation(row) { return result(await client.from('consultations').insert(row).select('id').single()).id; },
     async listConsultations() { return result(await client.from('consultations').select('id,created_at,name,phone,goal,education,message,calculator').order('id', { ascending: false }).limit(500)); },
     async listContent() { return result(await client.from('content_entries').select('id,type,category,title,body,format,cover_image,sample,created_at,updated_at').order('id', { ascending: false })); },
-    async listPublishedContent() { return result(await client.from('content_entries').select('id,type,updated_at').eq('sample', false).order('id', { ascending: false })); },
+    async listPublishedContent() { return result(await client.from('content_entries').select('id,type,category,title,body,format,created_at,updated_at').eq('sample', false).order('id', { ascending: false })); },
     async getContent(id, type) { return result(await client.from('content_entries').select('*').eq('id', id).eq('type', type).maybeSingle()) || null; },
     async insertContent(row) { return result(await client.from('content_entries').insert({ ...row, sample: false }).select('id').single()).id; },
     async updateContent(id, row) { return Boolean(result(await client.from('content_entries').update({ ...row, sample: false }).eq('id', id).select('id').maybeSingle())); },
@@ -81,3 +81,4 @@ export async function createStorage() {
   if (process.env.NODE_ENV === 'production' && !process.env.DATA_DIR) console.warn('WARNING: local SQLite storage may be lost after a Render restart. Set STORAGE_BACKEND=supabase for persistent data.');
   return localStorage();
 }
+

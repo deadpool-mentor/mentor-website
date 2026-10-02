@@ -1,6 +1,11 @@
 const $ = selector => document.querySelector(selector);
 let applications = [];
 const item = (tag, value, className = '') => { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node; };
+const isLocalPreview = ['localhost','127.0.0.1'].includes(location.hostname);
+if (isLocalPreview) {
+  const notice = item('p', '로컬 미리보기입니다. 여기서 저장한 글은 실제 홈페이지에 반영되지 않습니다. 실제 글은 공개 사이트의 관리 화면에서 작성해 주세요. ', 'local-preview-notice');
+  const link = item('a', '실제 사이트 글쓰기 ↗'); link.href = 'https://mentor-website-lm8r.onrender.com/admin'; notice.append(link); $('#adminMain').prepend(notice);
+}
 function field(label, value) { const box = item('div', '', 'admin-field'); box.append(item('span', label), item('strong', value || '—')); return box; }
 function entries(title, rows) {
   const box = item('section', '', 'admin-entry-group'); box.append(item('h3', title));
@@ -103,7 +108,7 @@ $('#contentForm').addEventListener('submit', async event => {
       const detail = await response.json().catch(() => ({}));
       throw new Error(response.status === 401 ? '로그인이 만료되었습니다. 작성 내용을 복사한 뒤 다시 로그인해 주세요.' : response.status === 413 ? detail.error || '글이 너무 큽니다. 이미지를 줄이거나 편집기의 이미지 버튼으로 올려 주세요.' : detail.error || `저장하지 못했습니다 (${response.status}). 입력한 내용은 그대로 두었습니다.`);
     }
-    resetEditor(); await loadAdminContent(); $('#contentStatus').textContent = '글을 저장했습니다. 홈페이지에서 새로고침하면 표시됩니다.';
+    resetEditor(); await loadAdminContent(); $('#contentStatus').textContent = isLocalPreview ? '로컬 미리보기에 저장했습니다. 실제 홈페이지에는 반영되지 않습니다.' : '글을 저장했습니다. 홈페이지에서 새로고침하면 표시됩니다.';
   } catch (error) { $('#contentStatus').textContent = error.message || '저장하지 못했습니다. 입력한 내용은 그대로 두었습니다.'; }
   finally { button.disabled = false; }
 });
@@ -112,6 +117,22 @@ $('#richBody').addEventListener('mouseup', () => { const selection = getSelectio
 $('#richBody').addEventListener('keyup', () => { const selection = getSelection(); if (selection.rangeCount) savedRange = selection.getRangeAt(0).cloneRange(); });
 function restoreRange() { $('#richBody').focus(); if (savedRange && $('#richBody').contains(savedRange.commonAncestorContainer)) { const selection = getSelection(); selection.removeAllRanges(); selection.addRange(savedRange); } }
 document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', () => { if (!$('#htmlSource').hidden) htmlMode(false); restoreRange(); document.execCommand(button.dataset.command, false, button.dataset.value || null); $('#richBody').focus(); }));
+$('#fontSize').addEventListener('change', event => {
+  const size = event.target.value;
+  if (!size) return;
+  if (!$('#htmlSource').hidden) htmlMode(false);
+  restoreRange();
+  if (getSelection()?.isCollapsed) { $('#contentStatus').textContent = '크기를 바꿀 글자를 먼저 선택해 주세요.'; event.target.value = ''; return; }
+  document.execCommand('fontSize', false, size);
+  const classes = { '2':'text-size-small', '3':'text-size-normal', '4':'text-size-large', '5':'text-size-xlarge' };
+  for (const font of $('#richBody').querySelectorAll('font[size]')) {
+    const span = document.createElement('span'); span.className = classes[font.getAttribute('size')] || 'text-size-normal';
+    while (font.firstChild) span.append(font.firstChild);
+    font.replaceWith(span);
+  }
+  event.target.value = '';
+  $('#richBody').focus();
+});
 $('#toggleHtml').addEventListener('click', () => htmlMode($('#htmlSource').hidden));
 $('#insertLink').addEventListener('click', () => { const url = prompt('연결할 링크 주소를 입력해 주세요 (https://...)'); if (!url) return; try { const parsed = new URL(url); if (!['http:','https:'].includes(parsed.protocol)) throw new Error(); } catch { $('#contentStatus').textContent = 'http 또는 https 링크를 입력해 주세요.'; return; } if (!$('#htmlSource').hidden) htmlMode(false); restoreRange(); document.execCommand('createLink', false, url); });
 $('#insertImage').addEventListener('click', () => { if (!$('#htmlSource').hidden) htmlMode(false); $('#imageFile').click(); });
@@ -154,3 +175,4 @@ $('#adminLogin').addEventListener('submit', async event => {
   finally { button.disabled = false; }
 });
 $('#refresh').addEventListener('click', refresh); refresh();
+
