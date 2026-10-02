@@ -45,7 +45,7 @@ async function refresh() {
 }
 let contentEntries = [];
 let savedRange = null;
-const reviewTemplate = `<p><strong>학습자 프로필</strong></p><ul><li>목표: [희망 과정·자격증]</li><li>학습자: [연령대와 상황만 간단히]</li><li>처음 고민: [상담 당시 어려웠던 점]</li></ul><h2>1. 학습을 시작한 이유</h2><p>[실제 상담 내용에 근거해 시작 배경을 적어 주세요.]</p><h2>2. 진행하면서 함께 해결한 부분</h2><p>[과목 선택, 일정 관리, 과제·토론 준비 등 실제로 도운 내용을 적어 주세요.]</p><h2>3. 학습자의 반응</h2><p>[대화에서 확인할 수 있는 반응을 과장 없이 적어 주세요.]</p><h2>4. 대화로 확인한 후기</h2><p>[이름·연락처 등 개인정보를 가린 캡처를 아래에 넣어 주세요. 게시된 후기 이미지에는 정수멘토 워터마크가 표시됩니다.]</p><h2>5. 비슷한 고민이 있다면</h2><p>현재 학력과 목표에 맞는 학습 순서를 함께 확인해 보세요. <a href="https://open.kakao.com/o/sfAip6Mi" target="_blank" rel="noopener noreferrer">카카오톡으로 상담하기 ↗</a></p>`;
+const reviewTemplate = `<p><strong>JUNGSOO STORY · [과정명]</strong></p><h2>📌 학습자 프로필</h2><ul><li><strong>목표</strong> · [준비하는 과정]</li><li><strong>학습자</strong> · [연령대와 상황]</li><li><strong>고민</strong> · [시작할 때 어려웠던 부분]</li><li><strong>현재 단계</strong> · [진행 중 또는 완료]</li></ul><h2>1. 학습자 상황 및 고민</h2><p>[실제 상황을 짧은 문장으로 적어 주세요.]</p><p>[모바일에서 읽기 편하게 문단을 나눠 주세요.]</p><h2>2. 함께 진행한 내용</h2><p>[대화 내용은 사실 확인용으로만 참고하고, 대화 문장을 그대로 인용하지 마세요.]</p><h2>3. 주요 지원 내용</h2><ul><li>[실제로 제공한 도움 1]</li><li>[실제로 제공한 도움 2]</li><li>[실제로 제공한 도움 3]</li></ul><p>[개인정보를 가린 대화 사진을 아래에 넣어 주세요. 목록 썸네일과 게시글에 정수멘토 워터마크가 표시됩니다.]</p><h2>4. 멘토의 한마디</h2><p>[현재 진행 상황에 맞는 응원과 다음 단계를 적어 주세요. 완료하지 않은 성과는 완료했다고 쓰지 마세요.]</p><p><a href="https://open.kakao.com/o/sfAip6Mi" target="_blank" rel="noopener noreferrer">카카오톡으로 무료 상담하기 ↗</a></p>`;
 function insertReviewTemplate() {
   if ($('#contentForm [name="id"]').value || $('#contentForm [name="type"]').value !== 'review') return;
   if ($('#richBody').textContent.trim() || $('#htmlSource').value.trim()) return;

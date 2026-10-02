@@ -32,11 +32,23 @@ function renderPosts(category = '전체') {
 function renderReviews() {
   const cards = reviews.map(review => {
     const card = document.createElement('a'); card.className = 'review'; card.href = `/reviews/${review.id}`;
+    const parsed = review.format === 'html' ? new DOMParser().parseFromString(review.body, 'text/html') : null;
+    const thumbnail = review.cover_image || parsed?.querySelector('img')?.getAttribute('src');
+    if (thumbnail && (/^\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)$/.test(thumbnail) || /^\/articles\/[a-z0-9-]+\.svg$/.test(thumbnail))) {
+      card.classList.add('review-has-thumb');
+      const frame = document.createElement('span'); frame.className = 'review-thumb';
+      const image = document.createElement('img'); image.src = thumbnail; image.alt = ''; image.loading = 'lazy';
+      const mark = document.createElement('span'); mark.className = 'review-thumb-watermark'; mark.setAttribute('aria-hidden', 'true');
+      const logo = document.createElement('img'); logo.src = '/logo.svg'; logo.alt = ''; mark.append(logo, '정수멘토');
+      frame.append(image, mark); card.append(frame);
+    }
+    const copy = document.createElement('span'); copy.className = 'review-copy';
     const category = document.createElement('span'); const readableCategory = review.category === '학위취득' ? '학위 취득' : review.category; category.textContent = readableCategory;
+    category.className = 'review-category';
     const title = document.createElement('h3'); title.textContent = review.title;
-    const body = document.createElement('p'); body.textContent = review.format === 'html' ? new DOMParser().parseFromString(review.body, 'text/html').body.textContent.slice(0, 150) : review.body;
+    const body = document.createElement('p'); body.textContent = parsed ? parsed.body.textContent.slice(0, 150) : review.body;
     const note = document.createElement('small'); note.textContent = new Date(review.created_at).toLocaleDateString('ko-KR');
-    card.append(category, title, body, note); return card;
+    copy.append(category, title); if (!card.querySelector('.review-thumb')) copy.append(body); copy.append(note); card.append(copy); return card;
   });
   if (!cards.length) { const empty = document.createElement('p'); empty.className = 'content-empty'; empty.textContent = '등록된 학생 후기가 없습니다.'; cards.push(empty); }
   $('#reviewGrid').replaceChildren(...cards);

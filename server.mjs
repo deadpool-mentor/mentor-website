@@ -31,6 +31,15 @@ function cleanHtml(value) {
 }
 const plain = row => row.format === 'html' ? sanitizeHtml(row.body, { allowedTags: [], allowedAttributes: {} }) : row.body;
 const contentHtml = row => row.format === 'html' ? cleanHtml(row.body) : `<p>${escapeHtml(row.body).replace(/\n/g, '<br>')}</p>`;
+function reviewThumbnail(row) {
+  if (isAllowedImage(row.cover_image)) return row.cover_image;
+  if (row.format !== 'html') return null;
+  for (const match of row.body.matchAll(/<img\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1/gi)) if (isAllowedImage(match[2])) return match[2];
+  return null;
+}
+function reviewCardImage(source) {
+  return source ? `<span class="review-thumb"><img src="${escapeHtml(source)}" alt="" loading="lazy"><span class="review-thumb-watermark" aria-hidden="true"><img src="/logo.svg" alt="">정수멘토</span></span>` : '';
+}
 function originUrl(request) { if (process.env.PUBLIC_SITE_URL) return new URL(process.env.PUBLIC_SITE_URL).origin; const host = request.headers.host || 'localhost'; return `${process.env.NODE_ENV === 'production' ? 'https' : 'http'}://${host}`; }
 const shareRasters = {
   '/articles/physical-education-cover.svg': '/share/physical-education.jpg',
@@ -56,7 +65,7 @@ async function homePage(request) {
   const origin = originUrl(request);
   const rows = await storage.listPublishedContent();
   const posts = rows.filter(row => row.type === 'post').map(row => `<a class="post" href="/posts/${row.id}"><span class="post-tag">${escapeHtml(row.category)}</span><span class="post-title">${escapeHtml(row.title)}</span><span class="post-date">${escapeHtml(row.created_at.slice(0,10))}</span></a>`).join('');
-  const reviews = rows.filter(row => row.type === 'review').map(row => `<a class="review" href="/reviews/${row.id}"><span>${escapeHtml(row.category)}</span><h3>${escapeHtml(row.title)}</h3><p>${escapeHtml(plain(row).replace(/\s+/g, ' ').slice(0,150))}</p></a>`).join('');
+  const reviews = rows.filter(row => row.type === 'review').map(row => { const thumbnail = reviewThumbnail(row); return `<a class="review${thumbnail ? ' review-has-thumb' : ''}" href="/reviews/${row.id}">${reviewCardImage(thumbnail)}<span class="review-copy"><span class="review-category">${escapeHtml(row.category)}</span><h3>${escapeHtml(row.title)}</h3>${thumbnail ? '' : `<p>${escapeHtml(plain(row).replace(/\s+/g, ' ').slice(0,150))}</p>`}<small>${escapeHtml(row.created_at.slice(0,10))}</small></span></a>`; }).join('');
   const structured = { '@context':'https://schema.org', '@type':'WebSite', name:'정수멘토', url:`${origin}/`, inLanguage:'ko-KR', description:'학점은행제 학위·편입·자격증 안내와 학점계산기, 무료 학습계획표 상담' };
   const file = await readFile(resolve(assetDir, 'index.html'), 'utf8');
   return file.replace('</head>', `<link rel="canonical" href="${escapeHtml(origin)}/"><meta property="og:type" content="website"><meta property="og:site_name" content="정수멘토"><meta property="og:locale" content="ko_KR"><meta property="og:url" content="${escapeHtml(origin)}/"><meta property="og:title" content="정수멘토 | 나에게 맞는 학점은행제 플랜"><meta property="og:description" content="학점은행제 학위·편입·자격증 안내와 학점계산기, 무료 학습계획표 상담">${shareImageTags(origin, { path: '/share/home.jpg', type: 'image/jpeg', width: 1200, height: 630 }, '정수멘토 학점은행제 학위·편입·자격증 안내')}<script type="application/ld+json">${jsonLd(structured)}</script></head>`).replace('<div id="postList" class="post-list"></div>', `<div id="postList" class="post-list">${posts}</div>`).replace('<div class="review-grid" id="reviewGrid"></div>', `<div class="review-grid" id="reviewGrid">${reviews}</div>`);
