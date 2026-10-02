@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 720" role="img" aria-labelledby="title desc">
+  <title id="title">기계설비유지관리자 준비 순서</title>
+  <desc id="desc">1. 자격 종목 선택, 2. 학점은행제로 응시자격 확인, 3. 시험 합격 뒤 등급과 경력 확인</desc>
+  <rect width="1000" height="720" rx="28" fill="#102c3e"/>
+  <text x="64" y="94" fill="#91e0d1" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="27" font-weight="800">정수멘토 · 준비 순서</text>
+  <text x="64" y="168" fill="#fff" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="48" font-weight="900">어디서부터 시작할까요?</text>
+  <rect x="60" y="214" width="880" height="130" rx="20" fill="#18465a"/>
+  <circle cx="127" cy="279" r="39" fill="#7ddbc9"/>
+  <text x="127" y="292" text-anchor="middle" fill="#102c3e" font-family="Arial,sans-serif" font-size="36" font-weight="800">1</text>
+  <text x="201" y="270" fill="#fff" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="35" font-weight="800">자격 종목 선택</text>
+  <text x="201" y="310" fill="#c6e1e2" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="24">기사 · 산업기사 중 목표 정하기</text>
+  <rect x="60" y="366" width="880" height="130" rx="20" fill="#18465a"/>
+  <circle cx="127" cy="431" r="39" fill="#7ddbc9"/>
+  <text x="127" y="444" text-anchor="middle" fill="#102c3e" font-family="Arial,sans-serif" font-size="36" font-weight="800">2</text>
+  <text x="201" y="422" fill="#fff" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="35" font-weight="800">응시자격 확인</text>
+  <text x="201" y="462" fill="#c6e1e2" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="24">부족한 학점은 학점은행제로 계획</text>
+  <rect x="60" y="518" width="880" height="130" rx="20" fill="#18465a"/>
+  <circle cx="127" cy="583" r="39" fill="#7ddbc9"/>
+  <text x="127" y="596" text-anchor="middle" fill="#102c3e" font-family="Arial,sans-serif" font-size="36" font-weight="800">3</text>
+  <text x="201" y="574" fill="#fff" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="35" font-weight="800">시험과 선임 준비</text>
+  <text x="201" y="614" fill="#c6e1e2" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="24">합격 후 등급 · 인정 경력 확인</text>
+</svg>

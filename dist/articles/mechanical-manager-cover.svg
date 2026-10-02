@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 720" role="img" aria-labelledby="title desc">
+  <title id="title">기계설비유지관리자 준비 가이드</title>
+  <desc id="desc">정수멘토. 학점은행제로 기사·산업기사 응시자격부터 확인하세요.</desc>
+  <rect width="1000" height="720" fill="#102c3e"/>
+  <circle cx="925" cy="135" r="260" fill="#174657"/>
+  <circle cx="845" cy="620" r="245" fill="#1a5060"/>
+  <path d="M705 72v575M770 40v600M835 17v620" stroke="#96dccf" stroke-opacity=".12" stroke-width="3"/>
+  <rect x="62" y="55" width="56" height="56" rx="14" fill="#79dbc9"/>
+  <path d="M76 94V78h8v16m5 0V70h8v24m5 0V83h6v11" fill="none" stroke="#123144" stroke-width="3"/>
+  <text x="137" y="96" fill="#fff" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-weight="800" font-size="31">정수멘토</text>
+  <text x="63" y="188" fill="#98e4d6" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-weight="700" font-size="28">자격증 준비 가이드</text>
+  <text x="58" y="300" fill="#fff" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-weight="900" font-size="77">기계설비</text>
+  <text x="58" y="401" fill="#fff" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-weight="900" font-size="77">유지관리자</text>
+  <rect x="61" y="443" width="624" height="4" fill="#79dbc9"/>
+  <text x="64" y="513" fill="#e5f3f2" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="34">학점은행제로</text>
+  <text x="64" y="565" fill="#e5f3f2" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="34">기사·산업기사 응시자격부터</text>
+  <text x="64" y="617" fill="#e5f3f2" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="34">차근차근 준비하세요</text>
+</svg>
