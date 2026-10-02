@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">정수멘토 학점은행제 안내</title>
+  <desc id="desc">학위, 편입, 자격증을 목표에 맞게 설계하고 무료 학습계획표 상담을 안내합니다.</desc>
+  <defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#0c2539"/><stop offset="1" stop-color="#19546a"/></linearGradient></defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g fill="none" stroke="#fff" opacity=".1"><circle cx="1065" cy="395" r="310" stroke-width="2"/><circle cx="1065" cy="395" r="235" stroke-width="2"/><circle cx="1065" cy="395" r="160" stroke-width="2"/><path d="M825 75v480M970 45v540M1120 35v560" stroke-width="1"/></g>
+  <g transform="translate(66 59)"><rect width="54" height="54" rx="13" fill="#102a43"/><path d="M11 40h33M14 37v-7h7v7M24 37V24h7v13M34 37V17h7v20" fill="none" stroke="#78e3d2" stroke-width="3" stroke-linejoin="round"/><path d="m13 20 8-6 8 3 12-8" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="41" cy="9" r="2.5" fill="#fff"/></g>
+  <text x="136" y="92" fill="#fff" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="28" font-weight="800">정수멘토</text>
+  <text x="66" y="183" fill="#a9e8dc" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="22" font-weight="700" letter-spacing="3">JUNGSOO MENTOR</text>
+  <text x="62" y="280" fill="#fff" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="71" font-weight="900">학점은행제,</text>
+  <text x="62" y="367" fill="#83e1cf" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="72" font-weight="900">내 목표에 맞게</text>
+  <text x="67" y="426" fill="#d9e9ee" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="28">학위 · 편입 · 자격증 과정 안내</text>
+  <rect x="66" y="486" width="1068" height="86" rx="17" fill="#fff" fill-opacity=".11" stroke="#fff" stroke-opacity=".18"/>
+  <text x="95" y="539" fill="#fff" font-family="Malgun Gothic,Noto Sans KR,sans-serif" font-size="26" font-weight="700">무료 학습계획표 상담</text>
+  <text x="1020" y="539" fill="#83e1cf" font-family="Arial,sans-serif" font-size="34" font-weight="700">↗</text>
+</svg>
