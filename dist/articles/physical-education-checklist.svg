@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 550" role="img" aria-labelledby="title desc">
+  <title id="title">체육교육대학원 양성과정 지원 전 확인할 세 가지</title>
+  <desc id="desc">학사학위 전공, 인정되는 전공과목 학점, 교원자격 취득 요건을 순서대로 확인하세요.</desc>
+  <rect width="1200" height="550" fill="#f0f7f6"/>
+  <rect x="39" y="38" width="1122" height="474" rx="28" fill="#fff" stroke="#d7e5e5"/>
+  <g transform="translate(76 73)"><rect width="44" height="44" rx="11" fill="#102a43"/><path d="M9 33h26M11 31v-6h6v6M20 31V19h6v12M29 31V13h6v18" fill="none" stroke="#78e3d2" stroke-width="2.5" stroke-linejoin="round"/><path d="m10 17 7-5 7 2 10-7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></g>
+  <text x="133" y="102" fill="#17354a" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="23" font-weight="800">정수멘토</text>
+  <text x="76" y="187" fill="#17354a" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="48" font-weight="900">지원 전에 확인할 3가지</text>
+  <text x="76" y="225" fill="#687e8c" font-family="Noto Sans KR,Malgun Gothic,sans-serif" font-size="21">학교마다 인정 기준이 달라 모집요강과 성적표를 함께 봐야 합니다.</text>
+  <g font-family="Noto Sans KR,Malgun Gothic,sans-serif">
+    <rect x="75" y="270" width="325" height="187" rx="18" fill="#eaf7f4"/>
+    <text x="99" y="318" fill="#0b9989" font-size="28" font-weight="900">01</text>
+    <text x="99" y="368" fill="#17354a" font-size="27" font-weight="800">관련 학사학위</text>
+    <text x="99" y="407" fill="#536b79" font-size="19">지원 전공과 학위 전공이</text>
+    <text x="99" y="434" fill="#536b79" font-size="19">동일·유사한지 확인</text>
+    <rect x="437" y="270" width="325" height="187" rx="18" fill="#eef3fb"/>
+    <text x="461" y="318" fill="#3174ad" font-size="28" font-weight="900">02</text>
+    <text x="461" y="368" fill="#17354a" font-size="27" font-weight="800">전공과목 인정</text>
+    <text x="461" y="407" fill="#536b79" font-size="19">취득 학점과 기본이수과목의</text>
+    <text x="461" y="434" fill="#536b79" font-size="19">인정 여부를 학교에 확인</text>
+    <rect x="799" y="270" width="325" height="187" rx="18" fill="#fff4e6"/>
+    <text x="823" y="318" fill="#d07927" font-size="28" font-weight="900">03</text>
+    <text x="823" y="368" fill="#17354a" font-size="27" font-weight="800">교원자격 요건</text>
+    <text x="823" y="407" fill="#536b79" font-size="19">입학 후 교직·실습 등</text>
+    <text x="823" y="434" fill="#536b79" font-size="19">추가 이수 조건 확인</text>
+  </g>
+</svg>

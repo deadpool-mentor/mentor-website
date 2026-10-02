@@ -13,7 +13,8 @@ const password = process.env.MENTOR_ADMIN_PASSWORD || randomBytes(18).toString('
 const sessionToken = randomBytes(32).toString('base64url');
 const loginAttempts = new Map();
 if (!process.env.MENTOR_ADMIN_PASSWORD) console.log(`관리 화면 암호: ${password}`);
-const files = { '/': ['index.html','text/html; charset=utf-8'], '/index.html': ['index.html','text/html; charset=utf-8'], '/styles.css': ['styles.css','text/css; charset=utf-8'], '/app.js': ['app.js','text/javascript; charset=utf-8'], '/catalog.json': ['catalog.json','application/json; charset=utf-8'], '/logo.svg': ['logo.svg','image/svg+xml'], '/admin': ['admin.html','text/html; charset=utf-8'], '/admin.js': ['admin.js','text/javascript; charset=utf-8'] };
+const files = { '/': ['index.html','text/html; charset=utf-8'], '/index.html': ['index.html','text/html; charset=utf-8'], '/styles.css': ['styles.css','text/css; charset=utf-8'], '/app.js': ['app.js','text/javascript; charset=utf-8'], '/catalog.json': ['catalog.json','application/json; charset=utf-8'], '/logo.svg': ['logo.svg','image/svg+xml'], '/admin': ['admin.html','text/html; charset=utf-8'], '/admin.js': ['admin.js','text/javascript; charset=utf-8'], '/articles/physical-education-cover.svg': ['articles/physical-education-cover.svg','image/svg+xml'], '/articles/physical-education-checklist.svg': ['articles/physical-education-checklist.svg','image/svg+xml'], '/articles/physical-education-consult.svg': ['articles/physical-education-consult.svg','image/svg+xml'] };
+const isAllowedImage = source => /^\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)$/.test(source || '') || (source?.startsWith('/articles/') && files[source]?.[1] === 'image/svg+xml');
 function json(response, status, value) { response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(value)); }
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[character]);
 function cleanHtml(value) {
@@ -25,7 +26,7 @@ function cleanHtml(value) {
     allowedSchemes: ['http','https','mailto'],
     allowedSchemesAppliedToAttributes: ['href'],
     transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }), font: (tag, attributes) => ({ tagName: 'span', attribs: { ...(attributes.size ? { class: ({ '1':'text-size-8pt', '2':'text-size-10pt', '3':'text-size-12pt', '4':'text-size-14pt', '5':'text-size-16pt', '6':'text-size-18pt', '7':'text-size-24pt' })[attributes.size] || 'text-size-12pt' } : {}), ...(/^#[0-9a-f]{6}$/i.test(attributes.color || '') ? { style: `color:${attributes.color}` } : {}) } }) },
-    exclusiveFilter: frame => frame.tag === 'img' && !/^\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)$/.test(frame.attribs.src || '')
+    exclusiveFilter: frame => frame.tag === 'img' && !isAllowedImage(frame.attribs.src)
   });
 }
 const plain = row => row.format === 'html' ? sanitizeHtml(row.body, { allowedTags: [], allowedAttributes: {} }) : row.body;
@@ -154,7 +155,7 @@ createServer(async (request, response) => {
       }
       if (request.method === 'PUT' && !id || request.method === 'POST' && path !== '/api/content') return json(response, 400, { error: 'Invalid path' });
       const data = await readBody(request, 20_000_000);
-      const type = String(data.type || ''), category = String(data.category || '').trim().slice(0, 40), title = String(data.title || '').trim().slice(0, 160), format = data.format === 'html' ? 'html' : 'text', rawBody = String(data.body || ''), body = (format === 'html' ? cleanHtml(await storeEmbeddedImages(rawBody)) : rawBody).trim(), coverImage = /^\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)$/.test(data.cover_image || '') ? data.cover_image : null;
+      const type = String(data.type || ''), category = String(data.category || '').trim().slice(0, 40), title = String(data.title || '').trim().slice(0, 160), format = data.format === 'html' ? 'html' : 'text', rawBody = String(data.body || ''), body = (format === 'html' ? cleanHtml(await storeEmbeddedImages(rawBody)) : rawBody).trim(), coverImage = isAllowedImage(data.cover_image) ? data.cover_image : null;
       if (Buffer.byteLength(body, 'utf8') > 500_000) return json(response, 413, { error: '이미지를 제외한 글 본문은 500KB 이하로 작성해 주세요.' });
       if (!['post','review'].includes(type) || !category || !title || !body || (!plain({ body, format }).trim() && !/<img\b[^>]*\bsrc="\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)"/i.test(body))) return json(response, 400, { error: 'Invalid content' });
       const now = new Date().toISOString();
@@ -171,4 +172,3 @@ createServer(async (request, response) => {
     response.writeHead(200, { 'Content-Type': type, 'Cache-Control': ['/admin','/admin.js'].includes(path) ? 'no-store' : 'public, max-age=60' }); response.end(file);
   } catch (error) { console.error(error); json(response, error.status || (error.message === 'Too large' ? 413 : 500), { error: error.status ? error.message : error.message === 'Too large' ? '요청 크기가 너무 큽니다. 이미지를 줄이거나 편집기의 이미지 버튼으로 올려 주세요.' : 'Request failed' }); }
 }).listen(Number(process.env.PORT || 8123), process.env.PORT ? '0.0.0.0' : '127.0.0.1', () => console.log(`Server listening on port ${process.env.PORT || 8123}`));
-
