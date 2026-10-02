@@ -146,20 +146,81 @@ $('#fontSize').addEventListener('change', event => {
   event.target.options[0].textContent = event.target.selectedOptions[0].textContent;
   event.target.value = '';
 });
-for (const [selector, command] of [['#textColor','foreColor'], ['#highlightColor','hiliteColor']]) {
-  const picker = $(selector);
-  picker.addEventListener('pointerdown', saveRange);
-  picker.addEventListener('change', () => {
-    if (!$('#htmlSource').hidden) htmlMode(false);
-    restoreRange();
-    if (getSelection().isCollapsed) { $('#contentStatus').textContent = '색을 바꿀 글자를 먼저 선택해 주세요.'; return; }
-    document.execCommand('styleWithCSS', false, true);
-    const applied = document.execCommand(command, false, picker.value);
-    document.execCommand('styleWithCSS', false, false);
-    saveRange();
-    $('#contentStatus').textContent = applied ? '' : '색을 적용하지 못했습니다. 글자를 다시 선택해 주세요.';
-  });
+const paletteDefaults = {
+  text: ['#122a3f','#ffffff','#e53935','#f57c00','#ffcc00','#198754','#0b9989','#2563eb','#7c3aed','#667085'],
+  highlight: ['#fff2a8','#ffdce0','#ffe4c7','#d9f5e8','#dcecff','#e9ddff','#e5e7eb','#ffffff']
+};
+const paletteState = { text: '#122a3f', highlight: '#fff2a8' };
+const paletteStorageKey = 'jungsoo-mentor-editor-colors-v1';
+let savedColors = { text: [], highlight: [] };
+try {
+  const stored = JSON.parse(localStorage.getItem(paletteStorageKey) || '{}');
+  for (const kind of ['text','highlight']) savedColors[kind] = Array.isArray(stored[kind]) ? stored[kind].filter(color => /^#[0-9a-f]{6}$/i.test(color)).slice(0,12) : [];
+} catch { /* The default palette remains available when browser storage is unavailable. */ }
+function persistColors() {
+  try { localStorage.setItem(paletteStorageKey, JSON.stringify(savedColors)); }
+  catch { $('#contentStatus').textContent = '이 브라우저에서 색상 저장을 사용할 수 없습니다.'; }
 }
+function applyColor(kind, color) {
+  if (!$('#htmlSource').hidden) htmlMode(false);
+  restoreRange();
+  if (getSelection().isCollapsed) { $('#contentStatus').textContent = '색을 바꿀 글자를 먼저 선택해 주세요.'; return; }
+  document.execCommand('styleWithCSS', false, true);
+  const applied = document.execCommand(kind === 'text' ? 'foreColor' : 'hiliteColor', false, color);
+  document.execCommand('styleWithCSS', false, false);
+  saveRange();
+  $('#contentStatus').textContent = applied ? '' : '색을 적용하지 못했습니다. 글자를 다시 선택해 주세요.';
+}
+function renderPalette(group) {
+  const kind = group.dataset.colorKind;
+  const makeSwatch = (color, removable) => {
+    const wrapper = item('span', '', 'palette-swatch-wrap');
+    const swatch = item('button', '', 'palette-swatch'); swatch.type = 'button';
+    swatch.style.backgroundColor = color; swatch.title = color;
+    swatch.setAttribute('aria-label', `${color} ${kind === 'text' ? '글자색' : '배경색'} 적용`);
+    swatch.addEventListener('mousedown', event => event.preventDefault());
+    swatch.addEventListener('click', () => { paletteState[kind] = color; group.querySelector('.active-color').style.backgroundColor = color; applyColor(kind, color); group.querySelector('.color-palette').hidden = true; });
+    wrapper.append(swatch);
+    if (removable) {
+      const remove = item('button', '×', 'palette-remove'); remove.type = 'button'; remove.title = `${color} 저장색 삭제`;
+      remove.setAttribute('aria-label', `${color} 저장색 삭제`);
+      remove.addEventListener('mousedown', event => event.preventDefault());
+      remove.addEventListener('click', () => { savedColors[kind] = savedColors[kind].filter(value => value !== color); persistColors(); renderPalette(group); });
+      wrapper.append(remove);
+    }
+    return wrapper;
+  };
+  group.querySelector('.palette-presets').replaceChildren(...paletteDefaults[kind].map(color => makeSwatch(color, false)));
+  const custom = group.querySelector('.palette-custom');
+  custom.replaceChildren(...savedColors[kind].map(color => makeSwatch(color, true)));
+  group.querySelector('.palette-empty').hidden = savedColors[kind].length > 0;
+}
+for (const group of document.querySelectorAll('.toolbar-color')) {
+  const kind = group.dataset.colorKind;
+  const panel = group.querySelector('.color-palette');
+  group.querySelector('.active-color').style.backgroundColor = paletteState[kind];
+  group.querySelector('.color-apply').addEventListener('mousedown', event => event.preventDefault());
+  group.querySelector('.color-apply').addEventListener('click', () => applyColor(kind, paletteState[kind]));
+  group.querySelector('.color-toggle').addEventListener('mousedown', event => event.preventDefault());
+  group.querySelector('.color-toggle').addEventListener('click', () => {
+    saveRange();
+    document.querySelectorAll('.color-palette').forEach(other => { if (other !== panel) other.hidden = true; });
+    panel.hidden = !panel.hidden;
+  });
+  group.querySelector('.palette-picker').addEventListener('pointerdown', saveRange);
+  group.querySelector('.palette-save').addEventListener('mousedown', event => event.preventDefault());
+  group.querySelector('.palette-save').addEventListener('click', () => {
+    const color = group.querySelector('.palette-picker').value.toLowerCase();
+    if (!savedColors[kind].includes(color)) {
+      if (savedColors[kind].length >= 12) { $('#contentStatus').textContent = '저장색은 최대 12개입니다. 기존 색을 삭제한 뒤 추가해 주세요.'; return; }
+      savedColors[kind].push(color); persistColors();
+    }
+    paletteState[kind] = color; group.querySelector('.active-color').style.backgroundColor = color;
+    renderPalette(group); applyColor(kind, color); panel.hidden = true;
+  });
+  renderPalette(group);
+}
+document.addEventListener('keydown', event => { if (event.key === 'Escape') document.querySelectorAll('.color-palette').forEach(panel => { panel.hidden = true; }); });
 $('#toggleHtml').addEventListener('click', () => htmlMode($('#htmlSource').hidden));
 $('#insertLink').addEventListener('click', () => { const url = prompt('연결할 링크 주소를 입력해 주세요 (https://...)'); if (!url) return; try { const parsed = new URL(url); if (!['http:','https:'].includes(parsed.protocol)) throw new Error(); } catch { $('#contentStatus').textContent = 'http 또는 https 링크를 입력해 주세요.'; return; } if (!$('#htmlSource').hidden) htmlMode(false); restoreRange(); document.execCommand('createLink', false, url); });
 $('#insertImage').addEventListener('click', () => { if (!$('#htmlSource').hidden) htmlMode(false); $('#imageFile').click(); });
@@ -202,4 +263,3 @@ $('#adminLogin').addEventListener('submit', async event => {
   finally { button.disabled = false; }
 });
 $('#refresh').addEventListener('click', refresh); refresh();
-
