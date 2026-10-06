@@ -5,6 +5,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import sanitizeHtml from 'sanitize-html';
 import { createStorage } from './storage.mjs';
+import { sendConsultationEmail } from './consultation-email.mjs';
 
 const assetDir = existsSync('dist/index.html') ? 'dist' : '.';
 const storage = await createStorage();
@@ -185,7 +186,12 @@ createServer(async (request, response) => {
       const name = String(data.name || '').trim().slice(0, 80), phone = String(data.phone || '').trim().slice(0, 40), goal = String(data.goal || '').trim().slice(0, 80), education = String(data.education || '').trim().slice(0, 80), message = String(data.message || '').trim().slice(0, 3000);
       const calculator = data.calculator == null ? null : data.calculator;
       if (!name || !/^0\d[\d\s-]{7,15}$/.test(phone) || !goal || !education || (calculator && JSON.stringify(calculator).length > 80_000)) return json(response, 400, { error: 'Invalid submission' });
-      const id = await storage.insertConsultation({ created_at: new Date().toISOString(), name, phone, goal, education, message, calculator });
+      const application = { created_at: new Date().toISOString(), name, phone, goal, education, message, calculator };
+      const id = await storage.insertConsultation(application);
+      if (process.env.RESEND_API_KEY) {
+        try { await sendConsultationEmail({ id, ...application }); }
+        catch (error) { console.error(`Consultation email delivery failed for #${id}: ${error.message}`); }
+      }
       return json(response, 201, { id });
     }
     if (request.method === 'GET' && path === '/api/consultations') {
