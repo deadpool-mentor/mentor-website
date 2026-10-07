@@ -163,9 +163,11 @@ createServer(async (request, response) => {
       if (authorized(request) || cookieValue(request, 'mentor_analytics_excluded') === '1' || /bot|crawler|spider|preview|kakaoscrap|facebookexternalhit/i.test(request.headers['user-agent'] || '')) { response.writeHead(204); return response.end(); }
       const data = await readBody(request, 500), viewedPath = String(data.path || '');
       if (!/^\/$|^\/(?:posts|reviews)\/\d+$/.test(viewedPath)) return json(response, 400, { error: 'Invalid page' });
+      const allowedSources = new Set(['direct','google','naver','daum','bing','kakao','instagram','facebook','youtube','other-site','other-campaign','unknown']);
+      const source = allowedSources.has(data.source) ? data.source : 'unknown';
       const existingId = cookieValue(request, 'mentor_visitor');
       const visitorId = /^[a-f0-9]{32}$/.test(existingId) ? existingId : randomBytes(16).toString('hex');
-      await storage.recordPageView({ day: koreaDay(), path: viewedPath, visitor_hash: visitorHash(visitorId) });
+      await storage.recordPageView({ day: koreaDay(), path: viewedPath, visitor_hash: visitorHash(visitorId), source });
       const cookie = existingId === visitorId ? [] : [`mentor_visitor=${visitorId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`];
       response.writeHead(204, { 'Cache-Control': 'no-store', ...(cookie.length ? { 'Set-Cookie': cookie } : {}) }); return response.end();
     }
@@ -184,8 +186,8 @@ createServer(async (request, response) => {
     }
     if (request.method === 'GET' && path === '/api/admin/analytics') {
       if (!authorized(request)) return json(response, 401, { error: 'Unauthorized' });
-      const days = recentDays(7), rows = await storage.listPublishedContent();
-      const pages = [{ path: '/', title: '홈페이지' }, ...rows.slice(0, 30).map(row => ({ path: `/${row.type === 'review' ? 'reviews' : 'posts'}/${row.id}`, title: row.title }))];
+      const days = recentDays(30), rows = await storage.listPublishedContent();
+      const pages = [{ path: '/', title: '홈페이지', category: '홈' }, ...rows.map(row => ({ path: `/${row.type === 'review' ? 'reviews' : 'posts'}/${row.id}`, title: row.title, category: row.type === 'review' ? '학생 후기' : row.category }))];
       return json(response, 200, await storage.getAnalytics(days, pages));
     }
     if (request.method === 'POST' && path === '/api/consultations') {
@@ -206,6 +208,12 @@ createServer(async (request, response) => {
       if (!authorized(request)) return json(response, 401, { error: 'Unauthorized' });
       const rows = await storage.listConsultations();
       return json(response, 200, rows);
+    }
+    if (request.method === 'DELETE' && /^\/api\/consultations\/\d+$/.test(path)) {
+      if (!authorized(request)) return json(response, 401, { error: 'Unauthorized' });
+      if (!sameOrigin(request)) return json(response, 403, { error: 'Forbidden' });
+      const deleted = await storage.deleteConsultation(Number(path.split('/').at(-1)));
+      return json(response, deleted ? 200 : 404, { ok: deleted });
     }
     if (request.method === 'GET' && path === '/api/content') {
       const rows = await storage.listContent();
@@ -239,4 +247,3 @@ createServer(async (request, response) => {
     response.writeHead(200, { 'Content-Type': type, 'Cache-Control': ['/admin','/admin.js'].includes(path) ? 'no-store' : 'public, max-age=60' }); response.end(file);
   } catch (error) { console.error(error); json(response, error.status || (error.message === 'Too large' ? 413 : 500), { error: error.status ? error.message : error.message === 'Too large' ? '요청 크기가 너무 큽니다. 이미지를 줄이거나 편집기의 이미지 버튼으로 올려 주세요.' : 'Request failed' }); }
 }).listen(Number(process.env.PORT || 8123), process.env.PORT ? '0.0.0.0' : '127.0.0.1', () => console.log(`Server listening on port ${process.env.PORT || 8123}`));
-

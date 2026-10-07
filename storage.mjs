@@ -13,6 +13,7 @@ function localStorage() {
     const contentExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='content_entries'").get();
     db.exec("CREATE TABLE IF NOT EXISTS content_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, category TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)");
     db.exec('CREATE TABLE IF NOT EXISTS analytics_page_views (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, path TEXT NOT NULL, visitor_hash TEXT NOT NULL)');
+    if (!db.prepare('PRAGMA table_info(analytics_page_views)').all().some(column => column.name === 'source')) db.exec("ALTER TABLE analytics_page_views ADD COLUMN source TEXT NOT NULL DEFAULT 'unknown'");
     db.exec('CREATE INDEX IF NOT EXISTS analytics_page_views_day_path ON analytics_page_views (day, path)');
     db.exec('CREATE INDEX IF NOT EXISTS analytics_page_views_visitor ON analytics_page_views (visitor_hash)');
     db.exec('CREATE TABLE IF NOT EXISTS analytics_daily_visitors (day TEXT NOT NULL, visitor_hash TEXT NOT NULL, PRIMARY KEY (day, visitor_hash))');
@@ -36,6 +37,7 @@ function localStorage() {
       async listConsultations() {
         return db.prepare('SELECT id, created_at, name, phone, goal, education, message, calculator FROM consultations ORDER BY id DESC LIMIT 500').all().map(row => ({ ...row, calculator: row.calculator ? JSON.parse(row.calculator) : null }));
       },
+      async deleteConsultation(id) { return Boolean(db.prepare('DELETE FROM consultations WHERE id=?').run(id).changes); },
       async listContent() { return db.prepare('SELECT id, type, category, title, body, format, cover_image, sample, created_at, updated_at FROM content_entries ORDER BY id DESC').all(); },
       async listPublishedContent() { return db.prepare('SELECT id, type, category, title, body, format, created_at, updated_at FROM content_entries WHERE sample=0 ORDER BY id DESC').all(); },
       async getContent(id, type) { return db.prepare('SELECT * FROM content_entries WHERE id=? AND type=?').get(id, type); },
@@ -48,11 +50,11 @@ function localStorage() {
         return Boolean(result.changes);
       },
       async deleteContent(id) { return Boolean(db.prepare('DELETE FROM content_entries WHERE id=?').run(id).changes); },
-      async recordPageView({ day, path, visitor_hash }) {
+      async recordPageView({ day, path, visitor_hash, source }) {
         db.exec('BEGIN');
         try {
           db.prepare('INSERT OR IGNORE INTO analytics_daily_visitors (day, visitor_hash) VALUES (?, ?)').run(day, visitor_hash);
-          db.prepare('INSERT INTO analytics_page_views (day, path, visitor_hash) VALUES (?, ?, ?)').run(day, path, visitor_hash);
+          db.prepare('INSERT INTO analytics_page_views (day, path, visitor_hash, source) VALUES (?, ?, ?, ?)').run(day, path, visitor_hash, source);
           db.exec('COMMIT');
         } catch (error) { db.exec('ROLLBACK'); throw error; }
       },
@@ -61,10 +63,17 @@ function localStorage() {
         db.prepare('DELETE FROM analytics_daily_visitors WHERE visitor_hash=?').run(hash);
       },
       async getAnalytics(days, pages) {
-        const viewCount = db.prepare('SELECT count(*) AS total FROM analytics_page_views WHERE day=?');
-        const visitorCount = db.prepare('SELECT count(*) AS total FROM analytics_daily_visitors WHERE day=?');
-        const pageCount = db.prepare('SELECT count(*) AS total FROM analytics_page_views WHERE day>=? AND path=?');
-        return { days: days.map(day => ({ day, views: viewCount.get(day).total, visitors: visitorCount.get(day).total })), pages: pages.map(page => ({ ...page, views: pageCount.get(days[0], page.path).total })) };
+        const recentStart = days.at(-7);
+        const dailyViews = new Map(db.prepare('SELECT day, count(*) AS views FROM analytics_page_views WHERE day>=? GROUP BY day').all(days[0]).map(row => [row.day, row.views]));
+        const dailyVisitors = new Map(db.prepare('SELECT day, count(*) AS visitors FROM analytics_daily_visitors WHERE day>=? GROUP BY day').all(days[0]).map(row => [row.day, row.visitors]));
+        const pageCounts = new Map(db.prepare('SELECT path, count(*) AS total, sum(CASE WHEN day>=? THEN 1 ELSE 0 END) AS recent FROM analytics_page_views GROUP BY path').all(recentStart).map(row => [row.path, row]));
+        const sources = db.prepare('SELECT source, count(*) AS views FROM analytics_page_views WHERE day>=? GROUP BY source ORDER BY views DESC').all(days[0]);
+        return {
+          days: days.map(day => ({ day, views: dailyViews.get(day) || 0, visitors: dailyVisitors.get(day) || 0 })),
+          pages: pages.map(page => ({ ...page, views: pageCounts.get(page.path)?.recent || 0, totalViews: pageCounts.get(page.path)?.total || 0 })),
+          sources,
+          totalViews: db.prepare('SELECT count(*) AS total FROM analytics_page_views').get().total
+        };
       }
     };
   })();
@@ -88,6 +97,7 @@ async function supabaseStorage() {
     async putImage(name, file, type) { result(await client.storage.from(bucket).upload(name, file, { contentType: type, upsert: false })); },
     async insertConsultation(row) { return result(await client.from('consultations').insert(row).select('id').single()).id; },
     async listConsultations() { return result(await client.from('consultations').select('id,created_at,name,phone,goal,education,message,calculator').order('id', { ascending: false }).limit(500)); },
+    async deleteConsultation(id) { return Boolean(result(await client.from('consultations').delete().eq('id', id).select('id').maybeSingle())); },
     async listContent() { return result(await client.from('content_entries').select('id,type,category,title,body,format,cover_image,sample,created_at,updated_at').order('id', { ascending: false })); },
     async listPublishedContent() { return result(await client.from('content_entries').select('id,type,category,title,body,format,created_at,updated_at').eq('sample', false).order('id', { ascending: false })); },
     async getContent(id, type) { return result(await client.from('content_entries').select('*').eq('id', id).eq('type', type).maybeSingle()) || null; },
@@ -104,16 +114,16 @@ async function supabaseStorage() {
       result(await client.from('analytics_daily_visitors').delete().eq('visitor_hash', hash));
     },
     async getAnalytics(days, pages) {
-      const countRows = async (table, filter) => {
-        let query = client.from(table).select('*', { count: 'exact', head: true });
-        query = filter(query);
-        const response = await query;
-        if (response.error) throw response.error;
-        return response.count || 0;
+      const summary = result(await client.rpc('admin_analytics_summary', { p_start_day: days[0], p_recent_day: days.at(-7) }));
+      const dailyViews = new Map(summary.dailyViews.map(row => [row.day, Number(row.views)]));
+      const dailyVisitors = new Map(summary.dailyVisitors.map(row => [row.day, Number(row.visitors)]));
+      const pageCounts = new Map(summary.pages.map(row => [row.path, row]));
+      return {
+        days: days.map(day => ({ day, views: dailyViews.get(day) || 0, visitors: dailyVisitors.get(day) || 0 })),
+        pages: pages.map(page => ({ ...page, views: Number(pageCounts.get(page.path)?.recent || 0), totalViews: Number(pageCounts.get(page.path)?.total || 0) })),
+        sources: summary.sources.map(row => ({ source: row.source, views: Number(row.views) })),
+        totalViews: Number(summary.totalViews || 0)
       };
-      const daily = await Promise.all(days.map(async day => ({ day, views: await countRows('analytics_page_views', query => query.eq('day', day)), visitors: await countRows('analytics_daily_visitors', query => query.eq('day', day)) })));
-      const pageCounts = await Promise.all(pages.map(async page => ({ ...page, views: await countRows('analytics_page_views', query => query.gte('day', days[0]).eq('path', page.path)) })));
-      return { days: daily, pages: pageCounts };
     }
   };
 }
@@ -124,4 +134,3 @@ export async function createStorage() {
   if (process.env.NODE_ENV === 'production' && !process.env.DATA_DIR) console.warn('WARNING: local SQLite storage may be lost after a Render restart. Set STORAGE_BACKEND=supabase for persistent data.');
   return localStorage();
 }
-
