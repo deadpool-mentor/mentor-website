@@ -1,5 +1,6 @@
 const $ = selector => document.querySelector(selector);
 let applications = [];
+const consultationStatus = { new: '신규', contacted: '연락 완료', planned: '계획표 전달', closed: '종료' };
 const item = (tag, value, className = '') => { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node; };
 const isLocalPreview = ['localhost','127.0.0.1'].includes(location.hostname);
 if (isLocalPreview) {
@@ -43,6 +44,27 @@ function show(application) {
     } catch { remove.disabled = false; $('#adminStatus').textContent = '삭제하지 못했습니다. 다시 시도해 주세요.'; }
   });
   top.append(heading, remove); detail.append(top);
+  const progress = item('form', '', 'admin-progress');
+  const statusLabel = item('label', '진행 상태');
+  const statusSelect = document.createElement('select');
+  for (const [value, label] of Object.entries(consultationStatus)) { const option = document.createElement('option'); option.value = value; option.textContent = label; statusSelect.append(option); }
+  statusSelect.value = application.status || 'new'; statusLabel.append(statusSelect);
+  const noteLabel = item('label', '관리 메모');
+  const noteInput = document.createElement('textarea'); noteInput.maxLength = 3000; noteInput.rows = 3; noteInput.placeholder = '연락 내용이나 다음에 할 일을 기록해 주세요.'; noteInput.value = application.admin_note || ''; noteLabel.append(noteInput);
+  const actions = item('div', '', 'admin-progress-actions');
+  const save = item('button', '진행 내용 저장', 'button button-dark'); save.type = 'submit';
+  const statusMessage = item('span', '', 'admin-progress-message'); statusMessage.setAttribute('role', 'status');
+  actions.append(save, statusMessage); progress.append(statusLabel, noteLabel, actions);
+  progress.addEventListener('submit', async event => {
+    event.preventDefault(); save.disabled = true; statusMessage.textContent = '저장 중입니다.';
+    try {
+      const response = await fetch(`/api/consultations/${application.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: statusSelect.value, admin_note: noteInput.value }) });
+      if (!response.ok) throw new Error('Update failed');
+      await refresh(application.id);
+      $('#adminStatus').textContent = '상담 진행 내용을 저장했습니다.';
+    } catch { save.disabled = false; statusMessage.textContent = '저장하지 못했습니다. 다시 시도해 주세요.'; }
+  });
+  detail.append(progress);
   const info = item('div', '', 'admin-info'); info.append(field('연락처', application.phone), field('상담 목표', application.goal), field('최종 학력', application.education), field('궁금한 점', application.message)); detail.append(info);
   const plan = application.calculator; detail.append(item('h2', '학점계산 내역'));
   if (!plan) { detail.append(item('p', '학점계산기를 사용하지 않았습니다.')); return; }
@@ -103,7 +125,25 @@ async function loadAnalytics() {
     $('#sourceStatus').textContent = '유입경로를 불러오지 못했습니다.';
   }
 }
-async function refresh() {
+function renderApplicationList(selectedId) {
+  const filter = $('#consultationFilter').value;
+  const visible = applications.filter(application => filter === 'all' || (application.status || 'new') === filter);
+  const list = $('#adminList'); list.replaceChildren();
+  for (const application of visible) {
+    const button = item('button', '', 'admin-list-item'); button.type = 'button'; button.dataset.id = application.id;
+    const heading = item('span', '', 'admin-application-heading');
+    heading.append(item('strong', application.name), item('small', consultationStatus[application.status] || '신규', `admin-status admin-status-${application.status || 'new'}`));
+    button.append(heading, item('span', `${application.goal} · ${new Date(application.created_at).toLocaleDateString('ko-KR')}`), item('small', application.calculator ? '학점계산 내역 포함' : '계산 내역 없음'));
+    button.addEventListener('click', () => { list.querySelectorAll('.admin-list-item').forEach(node => node.classList.remove('active')); button.classList.add('active'); show(application); });
+    list.append(button);
+  }
+  const chosen = visible.find(application => application.id === selectedId);
+  if (chosen) list.querySelector(`[data-id="${chosen.id}"]`)?.click();
+  else if (visible.length) list.firstElementChild.click();
+  else $('#adminDetail').replaceChildren(item('p', applications.length ? '이 상태의 상담 신청이 없습니다.' : '아직 접수된 상담 신청이 없습니다.'));
+}
+$('#consultationFilter').addEventListener('change', () => renderApplicationList());
+async function refresh(selectedId) {
   $('#adminStatus').textContent = '신청 내역을 불러오는 중입니다.';
   try {
     const response = await fetch('/api/consultations', { cache: 'no-store' });
@@ -111,21 +151,17 @@ async function refresh() {
     if (!response.ok) throw new Error('Load failed'); applications = await response.json();
     $('#adminLogin').hidden = true; $('#adminMain').hidden = false;
     void loadAnalytics();
-    $('#adminStatus').textContent = `상담 신청 ${applications.length}건`; $('#consultationBadge').textContent = applications.length.toLocaleString('ko-KR'); $('#adminList').replaceChildren();
+    const pending = applications.filter(application => (application.status || 'new') !== 'closed').length;
+    $('#adminStatus').textContent = `상담 신청 ${applications.length}건 · 진행 중 ${pending}건`; $('#consultationBadge').textContent = pending.toLocaleString('ko-KR');
     const overviewList = $('#overviewConsultations'); overviewList.replaceChildren();
     for (const application of applications.slice(0, 4)) {
       const button = item('button', '', 'admin-overview-consultation'); button.type = 'button';
-      button.append(item('strong', `${application.name} · ${application.goal}`), item('small', new Date(application.created_at).toLocaleDateString('ko-KR')));
-      button.addEventListener('click', () => { openTab('consultations'); const index = applications.findIndex(row => row.id === application.id); $('#adminList').children[index]?.click(); });
+      button.append(item('strong', `${application.name} · ${application.goal}`), item('small', `${consultationStatus[application.status] || '신규'} · ${new Date(application.created_at).toLocaleDateString('ko-KR')}`));
+      button.addEventListener('click', () => { $('#consultationFilter').value = 'all'; openTab('consultations'); renderApplicationList(application.id); });
       overviewList.append(button);
     }
     if (!applications.length) overviewList.append(item('p', '아직 접수된 상담 신청이 없습니다.', 'content-empty'));
-    for (const application of applications) {
-      const button = item('button', '', 'admin-list-item'); button.type = 'button';
-      button.append(item('strong', application.name), item('span', `${application.goal} · ${new Date(application.created_at).toLocaleDateString('ko-KR')}`), item('small', application.calculator ? '학점계산 내역 포함' : '계산 내역 없음'));
-      button.addEventListener('click', () => { document.querySelectorAll('.admin-list-item').forEach(node => node.classList.remove('active')); button.classList.add('active'); show(application); }); $('#adminList').append(button);
-    }
-    if (applications[0]) $('#adminList').firstElementChild.click(); else $('#adminDetail').replaceChildren(item('p', '아직 접수된 상담 신청이 없습니다.'));
+    renderApplicationList(selectedId);
     await loadAdminContent();
   } catch { $('#adminStatus').textContent = '신청 내역을 불러오지 못했습니다. 새로고침해 주세요.'; }
 }
@@ -358,4 +394,4 @@ $('#adminLogin').addEventListener('submit', async event => {
   } catch { $('#loginStatus').textContent = '로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.'; }
   finally { button.disabled = false; }
 });
-$('#refresh').addEventListener('click', refresh); refresh();
+$('#refresh').addEventListener('click', () => refresh(Number($('#adminList .active')?.dataset.id) || undefined)); refresh();

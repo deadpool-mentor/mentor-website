@@ -22,8 +22,20 @@ create table if not exists public.consultations (
   goal text not null,
   education text not null,
   message text not null default '',
-  calculator jsonb
+  calculator jsonb,
+  status text not null default 'new' check (status in ('new', 'contacted', 'planned', 'closed')),
+  admin_note text not null default '',
+  status_updated_at timestamptz
 );
+
+alter table public.consultations add column if not exists status text not null default 'new';
+alter table public.consultations add column if not exists admin_note text not null default '';
+alter table public.consultations add column if not exists status_updated_at timestamptz;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'consultations_status_check' and conrelid = 'public.consultations'::regclass) then
+    alter table public.consultations add constraint consultations_status_check check (status in ('new', 'contacted', 'planned', 'closed'));
+  end if;
+end $$;
 
 alter table public.content_entries enable row level security;
 alter table public.consultations enable row level security;

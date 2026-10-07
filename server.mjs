@@ -209,6 +209,15 @@ createServer(async (request, response) => {
       const rows = await storage.listConsultations();
       return json(response, 200, rows);
     }
+    if (request.method === 'PATCH' && /^\/api\/consultations\/\d+$/.test(path)) {
+      if (!authorized(request)) return json(response, 401, { error: 'Unauthorized' });
+      if (!sameOrigin(request)) return json(response, 403, { error: 'Forbidden' });
+      const data = await readBody(request, 10_000);
+      const status = String(data.status || ''), admin_note = String(data.admin_note || '').trim();
+      if (!['new','contacted','planned','closed'].includes(status) || admin_note.length > 3000) return json(response, 400, { error: 'Invalid consultation update' });
+      const updated = await storage.updateConsultation(Number(path.split('/').at(-1)), { status, admin_note, status_updated_at: new Date().toISOString() });
+      return json(response, updated ? 200 : 404, { ok: updated });
+    }
     if (request.method === 'DELETE' && /^\/api\/consultations\/\d+$/.test(path)) {
       if (!authorized(request)) return json(response, 401, { error: 'Unauthorized' });
       if (!sameOrigin(request)) return json(response, 403, { error: 'Forbidden' });

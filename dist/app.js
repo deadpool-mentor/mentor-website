@@ -1,6 +1,8 @@
 let posts = [];
 let reviews = [];
 let activePostCategory = '전체';
+let postSearchQuery = '';
+let visiblePostCount = 8;
 const $ = selector => document.querySelector(selector);
 const categoryName = { R: '전공필수', M: '전공선택', L: '교양', O: '일반선택' };
 const sourceName = { transfer: '전적대학', institution: '평가인정·시간제', certificate: '자격증', other: '기타' };
@@ -15,18 +17,26 @@ function toast(message) {
   toast.timeout = setTimeout(() => box.classList.remove('show'), 4500);
 }
 function renderPosts(category = '전체') {
+  if (category !== activePostCategory) visiblePostCount = 8;
   activePostCategory = category;
   document.querySelectorAll('.board-tab').forEach(tab => tab.setAttribute('aria-selected', String(tab.dataset.filter === category)));
-  const shown = posts.flatMap(post => {
-    if (category !== '전체' && post.category !== category) return [];
+  const matching = posts.filter(post => {
+    if (category !== '전체' && post.category !== category) return false;
+    if (!postSearchQuery) return true;
+    const body = post.format === 'html' ? new DOMParser().parseFromString(post.body, 'text/html').body.textContent : post.body;
+    return clean(`${post.title} ${post.category} ${body}`).includes(postSearchQuery);
+  });
+  const shown = matching.slice(0, visiblePostCount).map(post => {
     const button = document.createElement('a');
     button.href = `/posts/${post.id}`; button.className = 'post';
     for (const [className, value] of [['post-tag', post.sample ? `${post.category} · 예시` : post.category], ['post-title', post.title], ['post-date', new Date(post.created_at).toLocaleDateString('ko-KR')]]) {
       const span = document.createElement('span'); span.className = className; span.textContent = value; button.append(span);
     }
-    return [button];
+    return button;
   });
-  if (!shown.length) { const empty = document.createElement('p'); empty.className = 'content-empty'; empty.textContent = '등록된 안내 글이 없습니다.'; shown.push(empty); }
+  if (!shown.length) { const empty = document.createElement('p'); empty.className = 'content-empty'; empty.textContent = postSearchQuery ? '검색 결과가 없습니다. 다른 단어로 찾아보세요.' : '등록된 안내 글이 없습니다.'; shown.push(empty); }
+  $('#boardResultCount').textContent = `${postSearchQuery ? '검색 결과' : '안내 글'} ${matching.length}건${matching.length > visiblePostCount ? ` · ${visiblePostCount}건 표시 중` : ''}`;
+  $('#boardMore').hidden = matching.length <= visiblePostCount;
   $('#postList').replaceChildren(...shown);
 }
 function renderReviews() {
@@ -57,7 +67,7 @@ async function loadContent() {
   try {
     const response = await fetch('/api/content', { cache: 'no-store' }); if (!response.ok) throw new Error('Content unavailable');
     const entries = await response.json();
-    posts = entries.filter(entry => entry.type === 'post'); reviews = entries.filter(entry => entry.type === 'review' && !entry.sample);
+    posts = entries.filter(entry => entry.type === 'post' && !entry.sample); reviews = entries.filter(entry => entry.type === 'review' && !entry.sample);
     renderPosts(activePostCategory); renderReviews();
   } catch { $('#postList').textContent = '안내 글을 불러오지 못했습니다.'; $('#reviewGrid').textContent = '후기를 불러오지 못했습니다.'; }
 }
@@ -65,6 +75,8 @@ function initNavigation() {
   loadContent();
   document.querySelectorAll('.board-tab').forEach(tab => tab.addEventListener('click', () => renderPosts(tab.dataset.filter)));
   document.querySelectorAll('[data-category]').forEach(link => link.addEventListener('click', () => renderPosts(link.dataset.category)));
+  $('#boardSearch').addEventListener('input', event => { postSearchQuery = clean(event.target.value); visiblePostCount = 8; renderPosts(activePostCategory); });
+  $('#boardMore').addEventListener('click', () => { visiblePostCount += 8; renderPosts(activePostCategory); });
   const menuToggle = $('#menuToggle'), nav = $('#nav');
   menuToggle.addEventListener('click', () => { const open = nav.classList.toggle('open'); menuToggle.setAttribute('aria-expanded', String(open)); menuToggle.setAttribute('aria-label', open ? '메뉴 닫기' : '메뉴 열기'); });
   nav.querySelectorAll('a').forEach(link => link.addEventListener('click', () => { nav.classList.remove('open'); menuToggle.setAttribute('aria-expanded', 'false'); }));
@@ -331,4 +343,3 @@ function initCalculator() {
 }
 initNavigation();
 initCalculator();
-

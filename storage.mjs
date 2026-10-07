@@ -10,6 +10,9 @@ function localStorage() {
     await mkdir(uploadDir, { recursive: true });
     const db = new DatabaseSync(join(dataDir, 'consultations.sqlite'));
     db.exec('CREATE TABLE IF NOT EXISTS consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, name TEXT NOT NULL, phone TEXT NOT NULL, goal TEXT NOT NULL, education TEXT NOT NULL, message TEXT NOT NULL, calculator TEXT)');
+    if (!db.prepare('PRAGMA table_info(consultations)').all().some(column => column.name === 'status')) db.exec("ALTER TABLE consultations ADD COLUMN status TEXT NOT NULL DEFAULT 'new'");
+    if (!db.prepare('PRAGMA table_info(consultations)').all().some(column => column.name === 'admin_note')) db.exec("ALTER TABLE consultations ADD COLUMN admin_note TEXT NOT NULL DEFAULT ''");
+    if (!db.prepare('PRAGMA table_info(consultations)').all().some(column => column.name === 'status_updated_at')) db.exec('ALTER TABLE consultations ADD COLUMN status_updated_at TEXT');
     const contentExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='content_entries'").get();
     db.exec("CREATE TABLE IF NOT EXISTS content_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, category TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)");
     db.exec('CREATE TABLE IF NOT EXISTS analytics_page_views (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, path TEXT NOT NULL, visitor_hash TEXT NOT NULL)');
@@ -35,8 +38,9 @@ function localStorage() {
         return Number(result.lastInsertRowid);
       },
       async listConsultations() {
-        return db.prepare('SELECT id, created_at, name, phone, goal, education, message, calculator FROM consultations ORDER BY id DESC LIMIT 500').all().map(row => ({ ...row, calculator: row.calculator ? JSON.parse(row.calculator) : null }));
+        return db.prepare('SELECT id, created_at, name, phone, goal, education, message, calculator, status, admin_note, status_updated_at FROM consultations ORDER BY id DESC LIMIT 500').all().map(row => ({ ...row, calculator: row.calculator ? JSON.parse(row.calculator) : null }));
       },
+      async updateConsultation(id, { status, admin_note, status_updated_at }) { return Boolean(db.prepare('UPDATE consultations SET status=?, admin_note=?, status_updated_at=? WHERE id=?').run(status, admin_note, status_updated_at, id).changes); },
       async deleteConsultation(id) { return Boolean(db.prepare('DELETE FROM consultations WHERE id=?').run(id).changes); },
       async listContent() { return db.prepare('SELECT id, type, category, title, body, format, cover_image, sample, created_at, updated_at FROM content_entries ORDER BY id DESC').all(); },
       async listPublishedContent() { return db.prepare('SELECT id, type, category, title, body, format, created_at, updated_at FROM content_entries WHERE sample=0 ORDER BY id DESC').all(); },
@@ -96,7 +100,8 @@ async function supabaseStorage() {
     },
     async putImage(name, file, type) { result(await client.storage.from(bucket).upload(name, file, { contentType: type, upsert: false })); },
     async insertConsultation(row) { return result(await client.from('consultations').insert(row).select('id').single()).id; },
-    async listConsultations() { return result(await client.from('consultations').select('id,created_at,name,phone,goal,education,message,calculator').order('id', { ascending: false }).limit(500)); },
+    async listConsultations() { return result(await client.from('consultations').select('id,created_at,name,phone,goal,education,message,calculator,status,admin_note,status_updated_at').order('id', { ascending: false }).limit(500)); },
+    async updateConsultation(id, row) { return Boolean(result(await client.from('consultations').update(row).eq('id', id).select('id').maybeSingle())); },
     async deleteConsultation(id) { return Boolean(result(await client.from('consultations').delete().eq('id', id).select('id').maybeSingle())); },
     async listContent() { return result(await client.from('content_entries').select('id,type,category,title,body,format,cover_image,sample,created_at,updated_at').order('id', { ascending: false })); },
     async listPublishedContent() { return result(await client.from('content_entries').select('id,type,category,title,body,format,created_at,updated_at').eq('sample', false).order('id', { ascending: false })); },

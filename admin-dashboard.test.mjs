@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 
-test('admin dashboard counts sources and permits authorized consultation deletion', async () => {
+test('admin dashboard manages consultation progress and permits authorized deletion', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'mentor-admin-'));
   const port = 29000 + Math.floor(Math.random() * 10000);
   const child = spawn(process.execPath, ['server.mjs'], {
@@ -30,6 +30,8 @@ test('admin dashboard counts sources and permits authorized consultation deletio
     const { id } = await submitted.json();
     const anonymousDelete = await fetch(`${base}/api/consultations/${id}`, { method: 'DELETE' });
     assert.equal(anonymousDelete.status, 401);
+    const anonymousUpdate = await fetch(`${base}/api/consultations/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'contacted', admin_note: '연락함' }) });
+    assert.equal(anonymousUpdate.status, 401);
     const login = await fetch(`${base}/api/admin/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'test-only-password' }) });
     assert.equal(login.status, 200);
     const session = login.headers.get('set-cookie').match(/mentor_session=[^;]+/)?.[0];
@@ -40,6 +42,15 @@ test('admin dashboard counts sources and permits authorized consultation deletio
     assert.equal(analytics.totalViews, 1);
     assert.equal(analytics.sources.find(row => row.source === 'naver')?.views, 1);
     assert.equal(analytics.pages.find(row => row.path === '/')?.totalViews, 1);
+    const invalidUpdate = await fetch(`${base}/api/consultations/${id}`, { method: 'PATCH', headers: { Cookie: session, 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'unknown', admin_note: 'test' }) });
+    assert.equal(invalidUpdate.status, 400);
+    const updated = await fetch(`${base}/api/consultations/${id}`, { method: 'PATCH', headers: { Cookie: session, 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'contacted', admin_note: '연락 완료, 계획표 준비 중' }) });
+    assert.equal(updated.status, 200);
+    const progress = await fetch(`${base}/api/consultations`, { headers: { Cookie: session } });
+    const [saved] = await progress.json();
+    assert.equal(saved.status, 'contacted');
+    assert.equal(saved.admin_note, '연락 완료, 계획표 준비 중');
+    assert.ok(saved.status_updated_at);
     const deleted = await fetch(`${base}/api/consultations/${id}`, { method: 'DELETE', headers: { Cookie: session } });
     assert.equal(deleted.status, 200);
     const remaining = await fetch(`${base}/api/consultations`, { headers: { Cookie: session } });
