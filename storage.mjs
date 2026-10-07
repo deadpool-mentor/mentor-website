@@ -44,7 +44,7 @@ function localStorage() {
         return Number(result.lastInsertRowid);
       },
       async updateContent(id, row) {
-        const result = db.prepare('UPDATE content_entries SET type=?, category=?, title=?, body=?, format=?, cover_image=?, sample=0, updated_at=? WHERE id=?').run(row.type, row.category, row.title, row.body, row.format, row.cover_image, row.updated_at, id);
+        const result = db.prepare('UPDATE content_entries SET type=?, category=?, title=?, body=?, format=?, cover_image=?, updated_at=? WHERE id=?').run(row.type, row.category, row.title, row.body, row.format, row.cover_image, row.updated_at, id);
         return Boolean(result.changes);
       },
       async deleteContent(id) { return Boolean(db.prepare('DELETE FROM content_entries WHERE id=?').run(id).changes); },
@@ -92,7 +92,7 @@ async function supabaseStorage() {
     async listPublishedContent() { return result(await client.from('content_entries').select('id,type,category,title,body,format,created_at,updated_at').eq('sample', false).order('id', { ascending: false })); },
     async getContent(id, type) { return result(await client.from('content_entries').select('*').eq('id', id).eq('type', type).maybeSingle()) || null; },
     async insertContent(row) { return result(await client.from('content_entries').insert({ ...row, sample: false }).select('id').single()).id; },
-    async updateContent(id, row) { return Boolean(result(await client.from('content_entries').update({ ...row, sample: false }).eq('id', id).select('id').maybeSingle())); },
+    async updateContent(id, row) { return Boolean(result(await client.from('content_entries').update(row).eq('id', id).select('id').maybeSingle())); },
     async deleteContent(id) { return Boolean(result(await client.from('content_entries').delete().eq('id', id).select('id').maybeSingle())); },
     async recordPageView(row) {
       const unique = await client.from('analytics_daily_visitors').insert({ day: row.day, visitor_hash: row.visitor_hash });

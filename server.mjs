@@ -41,7 +41,8 @@ function reviewThumbnail(row) {
 function reviewCardImage(source) {
   return source ? `<span class="review-thumb"><img src="${escapeHtml(source)}" alt="" loading="lazy"><span class="review-thumb-watermark" aria-hidden="true"><img src="/logo.svg" alt="">정수멘토</span></span>` : '';
 }
-function originUrl(request) { if (process.env.PUBLIC_SITE_URL) return new URL(process.env.PUBLIC_SITE_URL).origin; const host = request.headers.host || 'localhost'; return `${process.env.NODE_ENV === 'production' ? 'https' : 'http'}://${host}`; }
+const officialSiteOrigin = 'https://eduonplan.co.kr';
+function originUrl(request) { const host = (request.headers.host || '').toLowerCase().split(':')[0]; if (process.env.NODE_ENV === 'production' || ['eduonplan.co.kr', 'www.eduonplan.co.kr', 'mentor-website-lm8r.onrender.com'].includes(host)) return officialSiteOrigin; if (process.env.PUBLIC_SITE_URL) return new URL(process.env.PUBLIC_SITE_URL).origin; return `http://${request.headers.host || 'localhost'}`; }
 const shareRasters = {
   '/articles/physical-education-cover.svg': '/share/physical-education.jpg',
   '/articles/mechanical-manager-cover.svg': '/share/mechanical-manager.jpg'
@@ -121,7 +122,14 @@ function authorized(request) {
 async function readBody(request, maxSize = 100_000) { const chunks = []; let size = 0; for await (const chunk of request) { size += chunk.length; if (size > maxSize) throw new Error('Too large'); chunks.push(chunk); } return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
 createServer(async (request, response) => {
   try {
-    const path = new URL(request.url, 'http://localhost').pathname;
+    const requestedUrl = new URL(request.url, 'http://localhost');
+    const path = requestedUrl.pathname;
+    const oldRenderHost = request.headers.host?.toLowerCase().split(':')[0] === 'mentor-website-lm8r.onrender.com';
+    if (['GET', 'HEAD'].includes(request.method) && (oldRenderHost || path === '/index.html')) {
+      const canonicalPath = path === '/index.html' ? '/' : path;
+      response.writeHead(301, { Location: `${oldRenderHost ? officialSiteOrigin : ''}${canonicalPath}${requestedUrl.search}`, 'Cache-Control': 'public, max-age=3600' });
+      return response.end();
+    }
     if (request.method === 'GET' && /^\/uploads\/[a-f0-9]{32}\.(png|jpg|webp|gif)$/.test(path)) {
       const file = await storage.getImage(path.slice(9));
       if (!file) return json(response, 404, { error: 'Not found' });
@@ -226,7 +234,7 @@ createServer(async (request, response) => {
       return json(response, updated ? 200 : 404, { ok: updated });
     }
     if (request.method !== 'GET' || !files[path]) return json(response, 404, { error: 'Not found' });
-    if (path === '/' || path === '/index.html') { response.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=60' }); return response.end(await homePage(request)); }
+    if (path === '/') { response.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=60' }); return response.end(await homePage(request)); }
     const [filename, type] = files[path], file = await readFile(resolve(assetDir, filename));
     response.writeHead(200, { 'Content-Type': type, 'Cache-Control': ['/admin','/admin.js'].includes(path) ? 'no-store' : 'public, max-age=60' }); response.end(file);
   } catch (error) { console.error(error); json(response, error.status || (error.message === 'Too large' ? 413 : 500), { error: error.status ? error.message : error.message === 'Too large' ? '요청 크기가 너무 큽니다. 이미지를 줄이거나 편집기의 이미지 버튼으로 올려 주세요.' : 'Request failed' }); }

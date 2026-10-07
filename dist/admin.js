@@ -94,7 +94,7 @@ function editEntry(entry) {
   if (entry.format === 'html') $('#richBody').innerHTML = entry.body;
   else { const paragraph = document.createElement('p'); paragraph.textContent = entry.body; $('#richBody').replaceChildren(paragraph); }
   savedRange = null;
-  $('#editorHeading').textContent = '글 수정'; $('#contentStatus').textContent = entry.sample ? '예시 글을 수정해 저장하면 예시 표시가 사라집니다.' : '';
+  $('#editorHeading').textContent = '글 수정'; $('#contentStatus').textContent = entry.sample ? '예시 글은 수정해 저장해도 검색에서 제외됩니다.' : '';
   form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 async function loadAdminContent() {
