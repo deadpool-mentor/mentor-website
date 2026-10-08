@@ -48,9 +48,13 @@ function renderReviews() {
       card.classList.add('review-has-thumb');
       const frame = document.createElement('span'); frame.className = 'review-thumb';
       const image = document.createElement('img'); image.src = thumbnail; image.alt = ''; image.loading = 'lazy';
-      const mark = document.createElement('span'); mark.className = 'review-thumb-watermark'; mark.setAttribute('aria-hidden', 'true');
-      const logo = document.createElement('img'); logo.src = '/logo.svg'; logo.alt = ''; mark.append(logo, '정수멘토');
-      frame.append(image, mark); card.append(frame);
+      frame.append(image);
+      if (!review.cover_image) {
+        const mark = document.createElement('span'); mark.className = 'review-thumb-watermark'; mark.setAttribute('aria-hidden', 'true');
+        const logo = document.createElement('img'); logo.src = '/logo.svg'; logo.alt = ''; mark.append(logo, '정수멘토');
+        frame.append(mark);
+      }
+      card.append(frame);
     }
     const copy = document.createElement('span'); copy.className = 'review-copy';
     const category = document.createElement('span'); const readableCategory = review.category === '학위취득' ? '학위 취득' : review.category; category.textContent = readableCategory;
