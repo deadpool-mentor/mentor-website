@@ -3,6 +3,7 @@ let reviews = [];
 let activePostCategory = '전체';
 let postSearchQuery = '';
 let visiblePostCount = 8;
+let visibleReviewCount = 4;
 const $ = selector => document.querySelector(selector);
 const categoryName = { R: '전공필수', M: '전공선택', L: '교양', O: '일반선택' };
 const sourceName = { transfer: '전적대학', institution: '평가인정·시간제', certificate: '자격증', other: '기타' };
@@ -40,7 +41,7 @@ function renderPosts(category = '전체') {
   $('#postList').replaceChildren(...shown);
 }
 function renderReviews() {
-  const cards = reviews.map(review => {
+  const cards = reviews.slice(0, visibleReviewCount).map(review => {
     const card = document.createElement('a'); card.className = 'review'; card.href = `/reviews/${review.id}`;
     const parsed = review.format === 'html' ? new DOMParser().parseFromString(review.body, 'text/html') : null;
     const thumbnail = review.cover_image || parsed?.querySelector('img')?.getAttribute('src');
@@ -66,6 +67,7 @@ function renderReviews() {
   });
   if (!cards.length) { const empty = document.createElement('p'); empty.className = 'content-empty'; empty.textContent = '등록된 학생 후기가 없습니다.'; cards.push(empty); }
   $('#reviewGrid').replaceChildren(...cards);
+  $('#reviewMore').hidden = reviews.length <= visibleReviewCount;
 }
 async function loadContent() {
   try {
@@ -73,7 +75,7 @@ async function loadContent() {
     const entries = await response.json();
     posts = entries.filter(entry => entry.type === 'post' && !entry.sample); reviews = entries.filter(entry => entry.type === 'review' && !entry.sample);
     renderPosts(activePostCategory); renderReviews();
-  } catch { $('#postList').textContent = '안내 글을 불러오지 못했습니다.'; $('#reviewGrid').textContent = '후기를 불러오지 못했습니다.'; }
+  } catch { if (!$('#postList').children.length) $('#postList').textContent = '안내 글을 불러오지 못했습니다.'; if (!$('#reviewGrid').children.length) $('#reviewGrid').textContent = '후기를 불러오지 못했습니다.'; }
 }
 function initNavigation() {
   loadContent();
@@ -81,6 +83,7 @@ function initNavigation() {
   document.querySelectorAll('[data-category]').forEach(link => link.addEventListener('click', () => renderPosts(link.dataset.category)));
   $('#boardSearch').addEventListener('input', event => { postSearchQuery = clean(event.target.value); visiblePostCount = 8; renderPosts(activePostCategory); });
   $('#boardMore').addEventListener('click', () => { visiblePostCount += 8; renderPosts(activePostCategory); });
+  $('#reviewMore').addEventListener('click', () => { visibleReviewCount += 4; renderReviews(); });
   const menuToggle = $('#menuToggle'), nav = $('#nav');
   menuToggle.addEventListener('click', () => { const open = nav.classList.toggle('open'); menuToggle.setAttribute('aria-expanded', String(open)); menuToggle.setAttribute('aria-label', open ? '메뉴 닫기' : '메뉴 열기'); });
   nav.querySelectorAll('a').forEach(link => link.addEventListener('click', () => { nav.classList.remove('open'); menuToggle.setAttribute('aria-expanded', 'false'); }));
