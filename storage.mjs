@@ -43,7 +43,7 @@ function localStorage() {
       async updateConsultation(id, { status, admin_note, status_updated_at }) { return Boolean(db.prepare('UPDATE consultations SET status=?, admin_note=?, status_updated_at=? WHERE id=?').run(status, admin_note, status_updated_at, id).changes); },
       async deleteConsultation(id) { return Boolean(db.prepare('DELETE FROM consultations WHERE id=?').run(id).changes); },
       async listContent() { return db.prepare('SELECT id, type, category, title, body, format, cover_image, sample, created_at, updated_at FROM content_entries ORDER BY id DESC').all(); },
-      async listPublishedContent() { return db.prepare('SELECT id, type, category, title, body, format, created_at, updated_at FROM content_entries WHERE sample=0 ORDER BY id DESC').all(); },
+      async listPublishedContent() { return db.prepare('SELECT id, type, category, title, body, format, cover_image, created_at, updated_at FROM content_entries WHERE sample=0 ORDER BY id DESC').all(); },
       async getContent(id, type) { return db.prepare('SELECT * FROM content_entries WHERE id=? AND type=?').get(id, type); },
       async insertContent(row) {
         const result = db.prepare('INSERT INTO content_entries (type, category, title, body, format, cover_image, sample, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)').run(row.type, row.category, row.title, row.body, row.format, row.cover_image, row.created_at, row.updated_at);
@@ -104,7 +104,7 @@ async function supabaseStorage() {
     async updateConsultation(id, row) { return Boolean(result(await client.from('consultations').update(row).eq('id', id).select('id').maybeSingle())); },
     async deleteConsultation(id) { return Boolean(result(await client.from('consultations').delete().eq('id', id).select('id').maybeSingle())); },
     async listContent() { return result(await client.from('content_entries').select('id,type,category,title,body,format,cover_image,sample,created_at,updated_at').order('id', { ascending: false })); },
-    async listPublishedContent() { return result(await client.from('content_entries').select('id,type,category,title,body,format,created_at,updated_at').eq('sample', false).order('id', { ascending: false })); },
+    async listPublishedContent() { return result(await client.from('content_entries').select('id,type,category,title,body,format,cover_image,created_at,updated_at').eq('sample', false).order('id', { ascending: false })); },
     async getContent(id, type) { return result(await client.from('content_entries').select('*').eq('id', id).eq('type', type).maybeSingle()) || null; },
     async insertContent(row) { return result(await client.from('content_entries').insert({ ...row, sample: false }).select('id').single()).id; },
     async updateContent(id, row) { return Boolean(result(await client.from('content_entries').update(row).eq('id', id).select('id').maybeSingle())); },

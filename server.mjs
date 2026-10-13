@@ -84,6 +84,32 @@ function articlePage(request, row) {
   const markedBody = row.type === 'review' && !isAllowedImage(row.cover_image) ? bodyHtml.replace(/<img\b[^>]*>/gi, image => `<div class="review-evidence">${image}<span class="review-watermark" aria-hidden="true"><img src="/logo.svg" alt="">정수멘토</span></div>`) : bodyHtml;
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${row.sample ? 'noindex,follow' : 'index,follow'}"><link rel="canonical" href="${escapeHtml(url)}"><meta property="og:type" content="article"><meta property="og:site_name" content="정수멘토"><meta property="og:locale" content="ko_KR"><meta property="og:title" content="${escapeHtml(row.title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(url)}">${shareImageTags(originUrl(request), shareImage, row.title)}${structuredDataScript}<link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.svg" type="image/svg+xml"><script src="/analytics.js" defer></script></head><body class="article-page"><header class="article-header"><a class="brand" href="/"><img class="brand-mark" src="/logo.svg" alt=""><span>정수멘토<small>JUNGSOO MENTOR</small></span></a><a href="/#${row.type === 'review' ? 'reviews' : 'board'}">목록으로 ↗</a></header><main class="article-main"><span class="eyebrow">${category} · ${escapeHtml(row.category)}${row.sample ? ' · 예시' : ''}</span><h1>${escapeHtml(row.title)}</h1><time datetime="${escapeHtml(row.created_at)}">${escapeHtml(row.created_at.slice(0,10))}</time>${row.cover_image ? `<img class="article-cover" src="${escapeHtml(row.cover_image)}" alt="">` : ''}<div class="article-body">${markedBody}</div>${row.sample ? `<p class="article-sample">${row.type === 'review' ? '화면 구성 예시입니다. 실제 학생 후기가 아닙니다.' : '화면 구성 예시 글입니다. 실제 교육과정 정보로 교체해 주세요.'}</p>` : ''}<a class="button button-dark" href="/#consult">무료 학습계획표 상담 ↗</a></main><a class="kakao-float" href="https://open.kakao.com/o/sfAip6Mi" target="_blank" rel="noopener noreferrer" aria-label="카카오톡 상담하기"><span class="kakao-icon">TALK</span><span>카카오톡<br>상담하기</span></a></body></html>`;
 }
+function articleThumbnail(row) {
+  if (isAllowedImage(row.cover_image)) return row.cover_image;
+  if (row.format === 'html') {
+    for (const match of String(row.body).matchAll(/<img\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1/gi)) {
+      if (isAllowedImage(match[2])) return match[2];
+    }
+  }
+  return null;
+}
+function topicWords(title) {
+  return new Set((String(title).toLowerCase().match(/[가-힣a-z0-9]{2,}/g) || []).filter(word => !['학점은행제', '방법', '준비', '안내'].includes(word)));
+}
+function relatedPostsHtml(row, published) {
+  const words = topicWords(row.title);
+  const candidates = published.filter(post => post.type === 'post' && post.id !== row.id);
+  const related = candidates.map(post => ({ post, score: (post.category === row.category ? 5 : 0) + [...topicWords(post.title)].filter(word => words.has(word)).length * 3 }))
+    .sort((a, b) => b.score - a.score || b.post.id - a.post.id).slice(0, 3);
+  if (!related.length) return '';
+  return `<section class="related-posts" aria-labelledby="related-posts-title"><div class="related-heading"><div><span class="eyebrow">MORE TO READ</span><h2 id="related-posts-title">함께 읽으면 좋은 글</h2></div><a href="/posts">교육과정 전체 보기 ↗</a></div><div class="related-grid">${related.map(({ post }) => { const thumbnail = articleThumbnail(post); return `<a class="related-card" href="/posts/${post.id}"><span class="related-image">${thumbnail ? `<img src="${escapeHtml(thumbnail)}" alt="" loading="lazy">` : '<img class="related-logo" src="/logo.svg" alt="" loading="lazy">'}</span><span class="related-copy"><span class="related-category">${escapeHtml(post.category)}</span><strong>${escapeHtml(post.title)}</strong><small>${escapeHtml(post.created_at.slice(0, 10))}</small></span></a>`; }).join('')}</div></section>`;
+}
+function archivePage(request, published) {
+  const origin = originUrl(request);
+  const posts = published.filter(row => row.type === 'post');
+  const cards = posts.map(row => { const thumbnail = articleThumbnail(row); return `<a class="archive-card" href="/posts/${row.id}"><span class="archive-image">${thumbnail ? `<img src="${escapeHtml(thumbnail)}" alt="" loading="lazy">` : '<img class="archive-logo" src="/logo.svg" alt="" loading="lazy">'}</span><span class="archive-copy"><span class="related-category">${escapeHtml(row.category)}</span><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.created_at.slice(0, 10))}</small></span><span class="archive-arrow" aria-hidden="true">↗</span></a>`; }).join('');
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>교육과정 안내 전체 글 | 정수멘토</title><meta name="description" content="정수멘토의 학점은행제 학위·편입·자격증 교육과정 안내 글을 최신순으로 확인하세요."><link rel="canonical" href="${escapeHtml(origin)}/posts"><link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.svg" type="image/svg+xml"></head><body class="article-page"><header class="article-header"><a class="brand" href="/"><img class="brand-mark" src="/logo.svg" alt=""><span>정수멘토<small>JUNGSOO MENTOR</small></span></a><a href="/#board">홈페이지로 ↗</a></header><main class="article-main archive-main"><span class="eyebrow">GUIDE / BOARD</span><h1>교육과정 안내</h1><p class="archive-intro">학위 취득·편입·자격증 안내 글을 최신순으로 모았습니다.</p><div class="archive-list">${cards || '<p class="content-empty">등록된 안내 글이 없습니다.</p>'}</div></main><a class="kakao-float" href="https://open.kakao.com/o/sfAip6Mi" target="_blank" rel="noopener noreferrer" aria-label="카카오톡 상담하기"><span class="kakao-icon">TALK</span><span>카카오톡<br>상담하기</span></a></body></html>`;
+}
 async function readUpload(request) { const chunks = []; let size = 0; for await (const chunk of request) { size += chunk.length; if (size > 5_000_000) throw new Error('Too large'); chunks.push(chunk); } return Buffer.concat(chunks); }
 function imageExtension(data, type) {
   if (type === 'image/png' && data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) return 'png';
@@ -144,18 +170,23 @@ createServer(async (request, response) => {
       await storage.putImage(name, file, String(request.headers['content-type'] || '').split(';')[0]);
       return json(response, 201, { url: `/uploads/${name}` });
     }
+    if (request.method === 'GET' && path === '/posts') {
+      const rows = await storage.listPublishedContent();
+      response.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=60' }); return response.end(archivePage(request, rows));
+    }
     if (request.method === 'GET' && /^\/(posts|reviews)\/\d+$/.test(path)) {
       const [, collection, id] = path.split('/');
       const row = await storage.getContent(Number(id), collection === 'posts' ? 'post' : 'review');
       if (!row || (row.type === 'review' && row.sample)) return json(response, 404, { error: 'Not found' });
-      response.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=60' }); return response.end(articlePage(request, row));
+      const related = row.type === 'post' ? relatedPostsHtml(row, await storage.listPublishedContent()) : '';
+      response.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=60' }); return response.end(articlePage(request, row).replace('</main>', `${related}</main>`));
     }
     if (request.method === 'GET' && path === '/robots.txt') {
       response.writeHead(200, { 'Content-Type':'text/plain; charset=utf-8' }); return response.end(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: ${originUrl(request)}/sitemap.xml\n`);
     }
     if (request.method === 'GET' && path === '/sitemap.xml') {
       const rows = await storage.listPublishedContent();
-      const pages = [{ url: `${originUrl(request)}/` }, ...rows.map(row => ({ url: `${originUrl(request)}/${row.type === 'review' ? 'reviews' : 'posts'}/${row.id}`, date: row.updated_at }))];
+      const pages = [{ url: `${originUrl(request)}/` }, { url: `${originUrl(request)}/posts` }, ...rows.map(row => ({ url: `${originUrl(request)}/${row.type === 'review' ? 'reviews' : 'posts'}/${row.id}`, date: row.updated_at }))];
       response.writeHead(200, { 'Content-Type':'application/xml; charset=utf-8' }); return response.end(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pages.map(page => `<url><loc>${escapeHtml(page.url)}</loc>${page.date ? `<lastmod>${page.date.slice(0,10)}</lastmod>` : ''}</url>`).join('')}</urlset>`);
     }
     if (request.method === 'POST' && path === '/api/analytics/view') {
