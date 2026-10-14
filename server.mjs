@@ -105,10 +105,17 @@ function topicWords(title) {
 function relatedPostsHtml(row, published) {
   const words = topicWords(row.title);
   const candidates = published.filter(post => post.type === 'post' && post.id !== row.id);
-  const related = candidates.map(post => ({ post, score: (post.category === row.category ? 5 : 0) + [...topicWords(post.title)].filter(word => words.has(word)).length * 3 }))
-    .sort((a, b) => b.score - a.score || b.post.id - a.post.id).slice(0, 3);
+  // Authors can select exactly three related posts with an HTML comment at the end of the body.
+  // The comment is removed by cleanHtml, so readers only see the linked cards below the CTA.
+  const chosenIds = String(row.body).match(/<!--\s*related-posts:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*-->/i)?.slice(1).map(Number) || [];
+  const chosen = chosenIds.length === 3 && new Set(chosenIds).size === 3
+    ? chosenIds.map(id => candidates.find(post => post.id === id)).filter(Boolean)
+    : [];
+  const ranked = candidates.map(post => ({ post, score: (post.category === row.category ? 5 : 0) + [...topicWords(post.title)].filter(word => words.has(word)).length * 3 }))
+    .sort((a, b) => b.score - a.score || b.post.id - a.post.id).map(({ post }) => post);
+  const related = [...chosen, ...ranked.filter(post => !chosen.some(item => item.id === post.id))].slice(0, 3);
   if (!related.length) return '';
-  return `<section class="related-posts" aria-labelledby="related-posts-title"><div class="related-heading"><div><span class="eyebrow">MORE TO READ</span><h2 id="related-posts-title">함께 읽으면 좋은 글</h2></div><a href="/posts">교육과정 전체 보기 ↗</a></div><div class="related-grid">${related.map(({ post }) => { const thumbnail = articleThumbnail(post); return `<a class="related-card" href="/posts/${post.id}"><span class="related-image">${thumbnail ? `<img src="${escapeHtml(thumbnail)}" alt="" loading="lazy">` : '<img class="related-logo" src="/logo.svg" alt="" loading="lazy">'}</span><span class="related-copy"><span class="related-category">${escapeHtml(post.category)}</span><strong>${escapeHtml(post.title)}</strong><small>${escapeHtml(post.created_at.slice(0, 10))}</small></span></a>`; }).join('')}</div></section>`;
+  return `<section class="related-posts" aria-labelledby="related-posts-title"><div class="related-heading"><div><span class="eyebrow">MORE TO READ</span><h2 id="related-posts-title">함께 읽으면 좋은 글</h2></div><a href="/posts">교육과정 전체 보기 ↗</a></div><div class="related-grid">${related.map(post => { const thumbnail = articleThumbnail(post); return `<a class="related-card" href="/posts/${post.id}"><span class="related-image">${thumbnail ? `<img src="${escapeHtml(thumbnail)}" alt="" loading="lazy">` : '<img class="related-logo" src="/logo.svg" alt="" loading="lazy">'}</span><span class="related-copy"><span class="related-category">${escapeHtml(post.category)}</span><strong>${escapeHtml(post.title)}</strong><small>${escapeHtml(post.created_at.slice(0, 10))}</small></span></a>`; }).join('')}</div></section>`;
 }
 function archivePage(request, published, type = 'post') {
   const origin = originUrl(request);
