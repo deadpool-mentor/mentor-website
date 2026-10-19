@@ -106,7 +106,7 @@ function relatedPostsHtml(row, published) {
   const words = topicWords(row.title);
   const candidates = published.filter(post => post.type === 'post' && post.id !== row.id);
   // Authors can select exactly three related posts with an HTML comment at the end of the body.
-  // The comment is removed by cleanHtml, so readers only see the linked cards below the CTA.
+  // cleanHtml removes the comment from rendered HTML; the content API retains a validated marker in storage.
   const chosenIds = String(row.body).match(/<!--\s*related-posts:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*-->/i)?.slice(1).map(Number) || [];
   const chosen = chosenIds.length === 3 && new Set(chosenIds).size === 3
     ? chosenIds.map(id => candidates.find(post => post.id === id)).filter(Boolean)
@@ -294,7 +294,7 @@ createServer(async (request, response) => {
       }
       if (request.method === 'PUT' && !id || request.method === 'POST' && path !== '/api/content') return json(response, 400, { error: 'Invalid path' });
       const data = await readBody(request, 20_000_000);
-      const type = String(data.type || ''), category = String(data.category || '').trim().slice(0, 40), title = String(data.title || '').trim().slice(0, 160), format = data.format === 'html' ? 'html' : 'text', rawBody = String(data.body || ''), body = (format === 'html' ? cleanHtml(await storeEmbeddedImages(rawBody)) : rawBody).trim(), coverImage = isAllowedImage(data.cover_image) ? data.cover_image : null;
+      const type = String(data.type || ''), category = String(data.category || '').trim().slice(0, 40), title = String(data.title || '').trim().slice(0, 160), format = data.format === 'html' ? 'html' : 'text', rawBody = String(data.body || ''), relatedIds = type === 'post' && format === 'html' ? rawBody.match(/<!--\s*related-posts:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*-->/i)?.slice(1).map(Number) : null, body = (format === 'html' ? cleanHtml(await storeEmbeddedImages(rawBody)) : rawBody).trim() + (relatedIds && new Set(relatedIds).size === 3 ? '\n<!-- related-posts: ' + relatedIds.join(',') + ' -->' : ''), coverImage = isAllowedImage(data.cover_image) ? data.cover_image : null;
       if (Buffer.byteLength(body, 'utf8') > 500_000) return json(response, 413, { error: '이미지를 제외한 글 본문은 500KB 이하로 작성해 주세요.' });
       if (!['post','review'].includes(type) || !category || !title || !body || (!plain({ body, format }).trim() && !/<img\b[^>]*\bsrc="\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)"/i.test(body))) return json(response, 400, { error: 'Invalid content' });
       const now = new Date().toISOString();
