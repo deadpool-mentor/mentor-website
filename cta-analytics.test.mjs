@@ -29,6 +29,7 @@ test('CTA clicks are separate from page views and removed with administrator vis
     assert.deepEqual(Object.fromEntries(before.ctaClicks.map(row => [row.target, row.clicks])), { consult: 1, kakao: 2 });
     assert.equal(before.sourceDomains.find(row => row.source_domain === 'search.naver.com')?.views, 3);
     assert.equal(before.landingPages.find(row => row.path === '/')?.visitors, 1);
+    assert.equal(before.entryRoutes.find(row => row.source === 'naver' && row.path === '/')?.visitors, 1);
     await storage.insertConsultation({ created_at: '2026-11-09T00:00:00Z', name: '테스트', phone: '01000000000', goal: '편입', education: '고졸', message: '', calculator: null, source_path: '/posts/17', source_title: '편입 준비 안내' });
     const [consultation] = await storage.listConsultations();
     assert.equal(consultation.source_path, '/posts/17');

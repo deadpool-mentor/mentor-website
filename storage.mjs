@@ -86,6 +86,7 @@ function localStorage() {
         const sources = db.prepare('SELECT source, count(*) AS views FROM analytics_page_views WHERE day>=? GROUP BY source ORDER BY views DESC').all(days[0]);
         const sourceDomains = db.prepare("SELECT source, source_domain, count(*) AS views FROM analytics_page_views WHERE day>=? AND source_domain<>'' GROUP BY source, source_domain ORDER BY views DESC LIMIT 30").all(days[0]);
         const landingPages = db.prepare("SELECT landing_path AS path, count(DISTINCT day || ':' || visitor_hash) AS visitors FROM analytics_page_views WHERE day>=? AND landing_path<>'' GROUP BY landing_path ORDER BY visitors DESC LIMIT 30").all(days[0]);
+        const entryRoutes = db.prepare("SELECT source, source_domain, landing_path AS path, count(DISTINCT day || ':' || visitor_hash) AS visitors FROM analytics_page_views WHERE day>=? AND landing_path<>'' GROUP BY source, source_domain, landing_path ORDER BY visitors DESC LIMIT 30").all(days[0]);
         const ctaClicks = db.prepare('SELECT target, count(*) AS clicks FROM analytics_cta_clicks WHERE day>=? GROUP BY target').all(days[0]);
         const ctaPages = new Map(db.prepare('SELECT path, target, count(*) AS clicks FROM analytics_cta_clicks WHERE day>=? GROUP BY path, target').all(days[0]).map(row => [`${row.path}:${row.target}`, row.clicks]));
         return {
@@ -94,6 +95,7 @@ function localStorage() {
           sources,
           sourceDomains,
           landingPages,
+          entryRoutes,
           ctaClicks,
           totalViews: db.prepare('SELECT count(*) AS total FROM analytics_page_views').get().total
         };
@@ -151,6 +153,7 @@ async function supabaseStorage() {
         sources: summary.sources.map(row => ({ source: row.source, views: Number(row.views) })),
         sourceDomains: summary.sourceDomains.map(row => ({ source: row.source, source_domain: row.source_domain, views: Number(row.views) })),
         landingPages: summary.landingPages.map(row => ({ path: row.path, visitors: Number(row.visitors) })),
+        entryRoutes: summary.entryRoutes.map(row => ({ source: row.source, source_domain: row.source_domain, path: row.path, visitors: Number(row.visitors) })),
         ctaClicks: summary.ctaClicks.map(row => ({ target: row.target, clicks: Number(row.clicks) })),
         totalViews: Number(summary.totalViews || 0)
       };

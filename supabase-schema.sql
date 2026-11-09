@@ -105,6 +105,8 @@ as $$
       from (select source, source_domain, count(*) as views from public.analytics_page_views where day >= p_start_day and source_domain <> '' group by source, source_domain order by views desc limit 30) domain_count),
     'landingPages', (select coalesce(jsonb_agg(to_jsonb(landing_count) order by landing_count.visitors desc), '[]'::jsonb)
       from (select landing_path as path, count(distinct (day, visitor_hash)) as visitors from public.analytics_page_views where day >= p_start_day and landing_path <> '' group by landing_path order by visitors desc limit 30) landing_count),
+    'entryRoutes', (select coalesce(jsonb_agg(to_jsonb(route_count) order by route_count.visitors desc), '[]'::jsonb)
+      from (select source, source_domain, landing_path as path, count(distinct (day, visitor_hash)) as visitors from public.analytics_page_views where day >= p_start_day and landing_path <> '' group by source, source_domain, landing_path order by visitors desc limit 30) route_count),
     'ctaClicks', (select coalesce(jsonb_agg(to_jsonb(click_count)), '[]'::jsonb)
       from (select target, count(*) as clicks from public.analytics_cta_clicks where day >= p_start_day group by target) click_count),
     'ctaPages', (select coalesce(jsonb_agg(to_jsonb(click_page)), '[]'::jsonb)

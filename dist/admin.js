@@ -86,7 +86,7 @@ async function loadAnalytics() {
   try {
     const response = await fetch('/api/admin/analytics', { cache: 'no-store' });
     if (!response.ok) throw new Error('Analytics unavailable');
-    const { days, pages, sources, sourceDomains = [], landingPages = [], totalViews, ctaClicks = [] } = await response.json();
+    const { days, pages, sources, sourceDomains = [], entryRoutes = [], totalViews, ctaClicks = [] } = await response.json();
     const today = days.at(-1) || { views: 0, visitors: 0 };
     const lastSevenViews = days.slice(-7).reduce((sum, day) => sum + day.views, 0);
     const summary = $('#analyticsSummary'); summary.replaceChildren();
@@ -131,13 +131,15 @@ async function loadAnalytics() {
     }
     if (!sourceDomains.length) domainList.append(item('p', '아직 상세 유입 사이트 기록이 없습니다.', 'content-empty'));
     const landingList = $('#analyticsLandingPages'); landingList.replaceChildren();
-    for (const landing of landingPages) {
+    for (const landing of entryRoutes) {
       const row = item('div', '', 'analytics-row');
+      const label = item('div', '', 'admin-entry-label');
+      label.append(item('small', `${sourceNames[landing.source] || '기타'}${landing.source_domain ? ` · ${landing.source_domain}` : ''}`));
       const link = item('a', pages.find(page => page.path === landing.path)?.title || landing.path);
       link.href = landing.path; link.target = '_blank'; link.rel = 'noopener noreferrer';
-      row.append(link, item('strong', `${Number(landing.visitors).toLocaleString('ko-KR')}명`)); landingList.append(row);
+      label.append(link); row.append(label, item('strong', `${Number(landing.visitors).toLocaleString('ko-KR')}명`)); landingList.append(row);
     }
-    if (!landingPages.length) landingList.append(item('p', '아직 첫 방문 페이지 기록이 없습니다.', 'content-empty'));
+    if (!entryRoutes.length) landingList.append(item('p', '아직 첫 방문 페이지 기록이 없습니다.', 'content-empty'));
     $('#sourceStatus').textContent = `최근 30일 페이지 조회 ${sourceTotal.toLocaleString('ko-KR')}회 기준`;
     $('#analyticsStatus').textContent = '';
   } catch {
