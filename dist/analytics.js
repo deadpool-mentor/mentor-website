@@ -31,4 +31,18 @@ if (trackedPath === '/' || /^\/(?:posts|reviews)\/\d+$/.test(trackedPath)) {
     keepalive: true,
     body: JSON.stringify({ path: trackedPath, source })
   }).catch(() => {});
+
+  document.addEventListener('click', event => {
+    const link = event.target.closest?.('a[href]');
+    if (!link) return;
+    let destination;
+    try { destination = new URL(link.href, location.href); } catch { return; }
+    const target = destination.hostname === 'open.kakao.com' && destination.pathname === '/o/sfAip6Mi'
+      ? 'kakao'
+      : destination.origin === location.origin && destination.hash === '#consult' ? 'consult' : null;
+    if (!target) return;
+    const body = JSON.stringify({ path: trackedPath, target });
+    if (navigator.sendBeacon?.('/api/analytics/cta', new Blob([body], { type: 'application/json' }))) return;
+    fetch('/api/analytics/cta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', keepalive: true, body }).catch(() => {});
+  }, { capture: true });
 }

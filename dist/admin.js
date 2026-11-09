@@ -80,11 +80,12 @@ async function loadAnalytics() {
   try {
     const response = await fetch('/api/admin/analytics', { cache: 'no-store' });
     if (!response.ok) throw new Error('Analytics unavailable');
-    const { days, pages, sources, totalViews } = await response.json();
+    const { days, pages, sources, totalViews, ctaClicks = [] } = await response.json();
     const today = days.at(-1) || { views: 0, visitors: 0 };
     const lastSevenViews = days.slice(-7).reduce((sum, day) => sum + day.views, 0);
     const summary = $('#analyticsSummary'); summary.replaceChildren();
-    for (const [label, value] of [['오늘 방문자', today.visitors], ['오늘 조회수', today.views], ['최근 7일 조회수', lastSevenViews], ['전체 조회수', totalViews]]) {
+    const ctaCount = target => ctaClicks.find(row => row.target === target)?.clicks || 0;
+    for (const [label, value] of [['오늘 방문자', today.visitors], ['오늘 조회수', today.views], ['최근 7일 조회수', lastSevenViews], ['전체 조회수', totalViews], ['최근 30일 상담 화면 이동', ctaCount('consult')], ['최근 30일 카카오톡 상담 클릭', ctaCount('kakao')]]) {
       const card = item('div', '', 'analytics-card'); card.append(item('span', label), item('strong', Number(value).toLocaleString('ko-KR'))); summary.append(card);
     }
     const dayList = $('#analyticsDays'), overviewDays = $('#overviewDays'); dayList.replaceChildren(); overviewDays.replaceChildren();

@@ -226,6 +226,17 @@ createServer(async (request, response) => {
       const cookie = existingId === visitorId ? [] : [`mentor_visitor=${visitorId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`];
       response.writeHead(204, { 'Cache-Control': 'no-store', ...(cookie.length ? { 'Set-Cookie': cookie } : {}) }); return response.end();
     }
+    if (request.method === 'POST' && path === '/api/analytics/cta') {
+      if (!sameOrigin(request)) return json(response, 403, { error: 'Forbidden' });
+      if (authorized(request) || cookieValue(request, 'mentor_analytics_excluded') === '1' || /bot|crawler|spider|preview|kakaoscrap|facebookexternalhit/i.test(request.headers['user-agent'] || '')) { response.writeHead(204); return response.end(); }
+      const data = await readBody(request, 500);
+      const clickedPath = String(data.path || '');
+      if (!/^\/$|^\/(?:posts|reviews)\/\d+$/.test(clickedPath) || !['kakao', 'consult'].includes(data.target)) return json(response, 400, { error: 'Invalid click' });
+      const existingId = cookieValue(request, 'mentor_visitor');
+      const visitorId = /^[a-f0-9]{32}$/.test(existingId) ? existingId : randomBytes(16).toString('hex');
+      await storage.recordCtaClick({ day: koreaDay(), path: clickedPath, target: data.target, visitor_hash: visitorHash(visitorId) });
+      response.writeHead(204, { 'Cache-Control': 'no-store', ...(existingId === visitorId ? {} : { 'Set-Cookie': `mentor_visitor=${visitorId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.NODE_ENV === 'production' ? '; Secure' : ''}` }) }); return response.end();
+    }
     if (request.method === 'POST' && path === '/api/admin/login') {
       if (!sameOrigin(request)) return json(response, 403, { error: 'Forbidden' });
       const now = Date.now(), attempts = loginAttempts.get(request.socket.remoteAddress) || [];

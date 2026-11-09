@@ -20,6 +20,9 @@ function localStorage() {
     db.exec('CREATE INDEX IF NOT EXISTS analytics_page_views_day_path ON analytics_page_views (day, path)');
     db.exec('CREATE INDEX IF NOT EXISTS analytics_page_views_visitor ON analytics_page_views (visitor_hash)');
     db.exec('CREATE TABLE IF NOT EXISTS analytics_daily_visitors (day TEXT NOT NULL, visitor_hash TEXT NOT NULL, PRIMARY KEY (day, visitor_hash))');
+    db.exec("CREATE TABLE IF NOT EXISTS analytics_cta_clicks (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, path TEXT NOT NULL, target TEXT NOT NULL CHECK (target IN ('kakao','consult')), visitor_hash TEXT NOT NULL)");
+    db.exec('CREATE INDEX IF NOT EXISTS analytics_cta_clicks_day_target ON analytics_cta_clicks (day, target)');
+    db.exec('CREATE INDEX IF NOT EXISTS analytics_cta_clicks_visitor ON analytics_cta_clicks (visitor_hash)');
     if (!db.prepare('PRAGMA table_info(content_entries)').all().some(column => column.name === 'format')) db.exec("ALTER TABLE content_entries ADD COLUMN format TEXT NOT NULL DEFAULT 'text'");
     if (!db.prepare('PRAGMA table_info(content_entries)').all().some(column => column.name === 'cover_image')) db.exec('ALTER TABLE content_entries ADD COLUMN cover_image TEXT');
     if (!contentExists) {
@@ -31,6 +34,7 @@ function localStorage() {
     }
     return {
       backend: 'sqlite',
+      close() { db.close(); },
       async getImage(name) { return readFile(join(uploadDir, name)).catch(error => { if (error.code === 'ENOENT') return null; throw error; }); },
       async putImage(name, file) { await writeFile(join(uploadDir, name), file, { flag: 'wx' }); },
       async insertConsultation(row) {
@@ -62,9 +66,13 @@ function localStorage() {
           db.exec('COMMIT');
         } catch (error) { db.exec('ROLLBACK'); throw error; }
       },
+      async recordCtaClick({ day, path, target, visitor_hash }) {
+        db.prepare('INSERT INTO analytics_cta_clicks (day, path, target, visitor_hash) VALUES (?, ?, ?, ?)').run(day, path, target, visitor_hash);
+      },
       async removeAnalyticsVisitor(hash) {
         db.prepare('DELETE FROM analytics_page_views WHERE visitor_hash=?').run(hash);
         db.prepare('DELETE FROM analytics_daily_visitors WHERE visitor_hash=?').run(hash);
+        db.prepare('DELETE FROM analytics_cta_clicks WHERE visitor_hash=?').run(hash);
       },
       async getAnalytics(days, pages) {
         const recentStart = days.at(-7);
@@ -72,10 +80,12 @@ function localStorage() {
         const dailyVisitors = new Map(db.prepare('SELECT day, count(*) AS visitors FROM analytics_daily_visitors WHERE day>=? GROUP BY day').all(days[0]).map(row => [row.day, row.visitors]));
         const pageCounts = new Map(db.prepare('SELECT path, count(*) AS total, sum(CASE WHEN day>=? THEN 1 ELSE 0 END) AS recent FROM analytics_page_views GROUP BY path').all(recentStart).map(row => [row.path, row]));
         const sources = db.prepare('SELECT source, count(*) AS views FROM analytics_page_views WHERE day>=? GROUP BY source ORDER BY views DESC').all(days[0]);
+        const ctaClicks = db.prepare('SELECT target, count(*) AS clicks FROM analytics_cta_clicks WHERE day>=? GROUP BY target').all(days[0]);
         return {
           days: days.map(day => ({ day, views: dailyViews.get(day) || 0, visitors: dailyVisitors.get(day) || 0 })),
           pages: pages.map(page => ({ ...page, views: pageCounts.get(page.path)?.recent || 0, totalViews: pageCounts.get(page.path)?.total || 0 })),
           sources,
+          ctaClicks,
           totalViews: db.prepare('SELECT count(*) AS total FROM analytics_page_views').get().total
         };
       }
@@ -114,9 +124,11 @@ async function supabaseStorage() {
       if (unique.error && unique.error.code !== '23505') throw unique.error;
       result(await client.from('analytics_page_views').insert(row));
     },
+    async recordCtaClick(row) { result(await client.from('analytics_cta_clicks').insert(row)); },
     async removeAnalyticsVisitor(hash) {
       result(await client.from('analytics_page_views').delete().eq('visitor_hash', hash));
       result(await client.from('analytics_daily_visitors').delete().eq('visitor_hash', hash));
+      result(await client.from('analytics_cta_clicks').delete().eq('visitor_hash', hash));
     },
     async getAnalytics(days, pages) {
       const summary = result(await client.rpc('admin_analytics_summary', { p_start_day: days[0], p_recent_day: days.at(-7) }));
@@ -127,6 +139,7 @@ async function supabaseStorage() {
         days: days.map(day => ({ day, views: dailyViews.get(day) || 0, visitors: dailyVisitors.get(day) || 0 })),
         pages: pages.map(page => ({ ...page, views: Number(pageCounts.get(page.path)?.recent || 0), totalViews: Number(pageCounts.get(page.path)?.total || 0) })),
         sources: summary.sources.map(row => ({ source: row.source, views: Number(row.views) })),
+        ctaClicks: summary.ctaClicks.map(row => ({ target: row.target, clicks: Number(row.clicks) })),
         totalViews: Number(summary.totalViews || 0)
       };
     }
