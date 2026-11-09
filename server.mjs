@@ -125,7 +125,7 @@ function archivePage(request, published, type = 'post') {
   const description = isReview ? '정수멘토와 함께 학점은행제 학습을 진행한 학생 후기를 확인하세요.' : '정수멘토의 학점은행제 학위·편입·자격증 교육과정 안내 글을 최신순으로 확인하세요.';
   const cards = published.filter(row => row.type === type).map(row => { const thumbnail = articleThumbnail(row); return `<a class="archive-card" href="${path}/${row.id}"><span class="archive-image">${thumbnail ? `<img src="${escapeHtml(thumbnail)}" alt="" loading="lazy">` : '<img class="archive-logo" src="/logo.svg" alt="" loading="lazy">'}</span><span class="archive-copy"><span class="related-category">${escapeHtml(row.category)}</span><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.created_at.slice(0, 10))}</small></span><span class="archive-arrow" aria-hidden="true">↗</span></a>`; }).join('');
   const collection = { '@context':'https://schema.org', '@type':'CollectionPage', name:heading, description, url:`${origin}${path}`, inLanguage:'ko-KR' };
-  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${heading} 전체 글 | 정수멘토</title><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${escapeHtml(origin + path)}"><link rel="alternate" type="application/rss+xml" title="정수멘토 교육과정 새 글" href="${escapeHtml(origin)}/feed.xml"><script type="application/ld+json">${jsonLd(collection)}</script><link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.svg" type="image/svg+xml"></head><body class="article-page"><header class="article-header"><a class="brand" href="/"><img class="brand-mark" src="/logo.svg" alt=""><span>정수멘토<small>JUNGSOO MENTOR</small></span></a><a href="/">홈페이지로 ↗</a></header><main class="article-main archive-main"><nav class="article-breadcrumb" aria-label="현재 위치"><a href="/">홈</a><span aria-hidden="true">›</span><span>${heading}</span></nav><span class="eyebrow">${isReview ? 'STUDENT STORIES' : 'GUIDE / BOARD'}</span><h1>${heading}</h1><p class="archive-intro">${isReview ? '학습자의 이야기를 최신순으로 모았습니다.' : '학위 취득·편입·자격증 안내 글을 최신순으로 모았습니다.'}</p><div class="archive-list">${cards || `<p class="content-empty">등록된 ${heading} 글이 없습니다.</p>`}</div></main><a class="kakao-float" href="https://open.kakao.com/o/sfAip6Mi" target="_blank" rel="noopener noreferrer" aria-label="카카오톡 상담하기"><span class="kakao-icon">TALK</span><span>카카오톡<br>상담하기</span></a></body></html>`;
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${heading} 전체 글 | 정수멘토</title><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${escapeHtml(origin + path)}"><link rel="alternate" type="application/rss+xml" title="정수멘토 교육과정 새 글" href="${escapeHtml(origin)}/feed.xml"><script type="application/ld+json">${jsonLd(collection)}</script><link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.svg" type="image/svg+xml"><script src="/analytics.js" defer></script></head><body class="article-page"><header class="article-header"><a class="brand" href="/"><img class="brand-mark" src="/logo.svg" alt=""><span>정수멘토<small>JUNGSOO MENTOR</small></span></a><a href="/">홈페이지로 ↗</a></header><main class="article-main archive-main"><nav class="article-breadcrumb" aria-label="현재 위치"><a href="/">홈</a><span aria-hidden="true">›</span><span>${heading}</span></nav><span class="eyebrow">${isReview ? 'STUDENT STORIES' : 'GUIDE / BOARD'}</span><h1>${heading}</h1><p class="archive-intro">${isReview ? '학습자의 이야기를 최신순으로 모았습니다.' : '학위 취득·편입·자격증 안내 글을 최신순으로 모았습니다.'}</p><div class="archive-list">${cards || `<p class="content-empty">등록된 ${heading} 글이 없습니다.</p>`}</div></main><a class="kakao-float" href="https://open.kakao.com/o/sfAip6Mi" target="_blank" rel="noopener noreferrer" aria-label="카카오톡 상담하기"><span class="kakao-icon">TALK</span><span>카카오톡<br>상담하기</span></a></body></html>`;
 }
 async function readUpload(request) { const chunks = []; let size = 0; for await (const chunk of request) { size += chunk.length; if (size > 5_000_000) throw new Error('Too large'); chunks.push(chunk); } return Buffer.concat(chunks); }
 function imageExtension(data, type) {
@@ -217,12 +217,14 @@ createServer(async (request, response) => {
       if (!sameOrigin(request)) return json(response, 403, { error: 'Forbidden' });
       if (authorized(request) || cookieValue(request, 'mentor_analytics_excluded') === '1' || /bot|crawler|spider|preview|kakaoscrap|facebookexternalhit/i.test(request.headers['user-agent'] || '')) { response.writeHead(204); return response.end(); }
       const data = await readBody(request, 500), viewedPath = String(data.path || '');
-      if (!/^\/$|^\/(?:posts|reviews)\/\d+$/.test(viewedPath)) return json(response, 400, { error: 'Invalid page' });
+      if (!/^\/$|^\/(?:posts|reviews)(?:\/\d+)?$/.test(viewedPath)) return json(response, 400, { error: 'Invalid page' });
       const allowedSources = new Set(['direct','google','naver','daum','bing','kakao','instagram','facebook','youtube','other-site','other-campaign','unknown']);
       const source = allowedSources.has(data.source) ? data.source : 'unknown';
+      const sourceDomain = /^[a-z0-9.-]{1,100}$/.test(data.source_domain || '') ? data.source_domain : '';
+      const landingPath = /^\/$|^\/(?:posts|reviews)(?:\/\d+)?$/.test(data.landing_path || '') ? data.landing_path : viewedPath;
       const existingId = cookieValue(request, 'mentor_visitor');
       const visitorId = /^[a-f0-9]{32}$/.test(existingId) ? existingId : randomBytes(16).toString('hex');
-      await storage.recordPageView({ day: koreaDay(), path: viewedPath, visitor_hash: visitorHash(visitorId), source });
+      await storage.recordPageView({ day: koreaDay(), path: viewedPath, visitor_hash: visitorHash(visitorId), source, source_domain: sourceDomain, landing_path: landingPath });
       const cookie = existingId === visitorId ? [] : [`mentor_visitor=${visitorId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`];
       response.writeHead(204, { 'Cache-Control': 'no-store', ...(cookie.length ? { 'Set-Cookie': cookie } : {}) }); return response.end();
     }
@@ -231,7 +233,7 @@ createServer(async (request, response) => {
       if (authorized(request) || cookieValue(request, 'mentor_analytics_excluded') === '1' || /bot|crawler|spider|preview|kakaoscrap|facebookexternalhit/i.test(request.headers['user-agent'] || '')) { response.writeHead(204); return response.end(); }
       const data = await readBody(request, 500);
       const clickedPath = String(data.path || '');
-      if (!/^\/$|^\/(?:posts|reviews)\/\d+$/.test(clickedPath) || !['kakao', 'consult'].includes(data.target)) return json(response, 400, { error: 'Invalid click' });
+      if (!/^\/$|^\/(?:posts|reviews)(?:\/\d+)?$/.test(clickedPath) || !['kakao', 'consult'].includes(data.target)) return json(response, 400, { error: 'Invalid click' });
       const existingId = cookieValue(request, 'mentor_visitor');
       const visitorId = /^[a-f0-9]{32}$/.test(existingId) ? existingId : randomBytes(16).toString('hex');
       await storage.recordCtaClick({ day: koreaDay(), path: clickedPath, target: data.target, visitor_hash: visitorHash(visitorId) });
@@ -253,7 +255,7 @@ createServer(async (request, response) => {
     if (request.method === 'GET' && path === '/api/admin/analytics') {
       if (!authorized(request)) return json(response, 401, { error: 'Unauthorized' });
       const days = recentDays(30), rows = await storage.listPublishedContent();
-      const pages = [{ path: '/', title: '홈페이지', category: '홈' }, ...rows.map(row => ({ path: `/${row.type === 'review' ? 'reviews' : 'posts'}/${row.id}`, title: row.title, category: row.type === 'review' ? '학생 후기' : row.category }))];
+      const pages = [{ path: '/', title: '홈페이지', category: '홈' }, { path: '/posts', title: '교육과정 전체 글', category: '목록' }, { path: '/reviews', title: '학생 후기 전체 글', category: '목록' }, ...rows.map(row => ({ path: `/${row.type === 'review' ? 'reviews' : 'posts'}/${row.id}`, title: row.title, category: row.type === 'review' ? '학생 후기' : row.category }))];
       return json(response, 200, await storage.getAnalytics(days, pages));
     }
     if (request.method === 'POST' && path === '/api/consultations') {
@@ -262,7 +264,10 @@ createServer(async (request, response) => {
       const name = String(data.name || '').trim().slice(0, 80), phone = String(data.phone || '').trim().slice(0, 40), goal = String(data.goal || '').trim().slice(0, 80), education = String(data.education || '').trim().slice(0, 80), message = String(data.message || '').trim().slice(0, 3000);
       const calculator = data.calculator == null ? null : data.calculator;
       if (!name || !/^0\d[\d\s-]{7,15}$/.test(phone) || !goal || !education || (calculator && JSON.stringify(calculator).length > 80_000)) return json(response, 400, { error: 'Invalid submission' });
-      const application = { created_at: new Date().toISOString(), name, phone, goal, education, message, calculator };
+      const sourcePath = String(data.source_path || '');
+      const sourceMatch = sourcePath.match(/^\/(posts|reviews)\/(\d+)$/);
+      const sourceEntry = sourceMatch ? await storage.getContent(Number(sourceMatch[2]), sourceMatch[1] === 'posts' ? 'post' : 'review') : null;
+      const application = { created_at: new Date().toISOString(), name, phone, goal, education, message, calculator, source_path: sourceEntry && !sourceEntry.sample ? sourcePath : null, source_title: sourceEntry && !sourceEntry.sample ? sourceEntry.title : null };
       const id = await storage.insertConsultation(application);
       if (process.env.RESEND_API_KEY) {
         try { await sendConsultationEmail({ id, ...application }); }
@@ -305,7 +310,7 @@ createServer(async (request, response) => {
       }
       if (request.method === 'PUT' && !id || request.method === 'POST' && path !== '/api/content') return json(response, 400, { error: 'Invalid path' });
       const data = await readBody(request, 20_000_000);
-      const type = String(data.type || ''), category = String(data.category || '').trim().slice(0, 40), title = String(data.title || '').trim().slice(0, 160), format = data.format === 'html' ? 'html' : 'text', rawBody = String(data.body || ''), relatedIds = type === 'post' && format === 'html' ? rawBody.match(/<!--\s*related-posts:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*-->/i)?.slice(1).map(Number) : null, body = (format === 'html' ? cleanHtml(await storeEmbeddedImages(rawBody)) : rawBody).trim() + (relatedIds && new Set(relatedIds).size === 3 ? '\n<!-- related-posts: ' + relatedIds.join(',') + ' -->' : ''), coverImage = isAllowedImage(data.cover_image) ? data.cover_image : null;
+      const type = String(data.type || ''), category = String(data.category || '').trim().slice(0, 40), title = String(data.title || '').trim().slice(0, 160), format = data.format === 'html' ? 'html' : 'text', rawBody = String(data.body || ''), relatedIds = type === 'post' && format === 'html' ? rawBody.match(/<!--\s*related-posts:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*-->/i)?.slice(1).map(Number) : null, body = (format === 'html' ? cleanHtml(await storeEmbeddedImages(rawBody)) : rawBody).trim() + (relatedIds && new Set(relatedIds).size === 3 ? `\n<!-- related-posts: ${relatedIds.join(',')} -->` : ''), coverImage = isAllowedImage(data.cover_image) ? data.cover_image : null;
       if (Buffer.byteLength(body, 'utf8') > 500_000) return json(response, 413, { error: '이미지를 제외한 글 본문은 500KB 이하로 작성해 주세요.' });
       if (!['post','review'].includes(type) || !category || !title || !body || (!plain({ body, format }).trim() && !/<img\b[^>]*\bsrc="\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)"/i.test(body))) return json(response, 400, { error: 'Invalid content' });
       const now = new Date().toISOString();

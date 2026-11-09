@@ -300,12 +300,19 @@ async function submitConsultation(event) {
   const button = form.querySelector('button[type="submit"]');
   const status = $('#formStatus');
   const data = new FormData(form);
-  const payload = { name: String(data.get('name') || '').trim(), phone: String(data.get('phone') || '').trim(), goal: String(data.get('goal') || ''), education: String(data.get('education') || ''), message: String(data.get('message') || '').trim(), calculator: calculatorSnapshot() };
+  let sourcePath = null;
+  try {
+    const lastArticle = JSON.parse(sessionStorage.getItem('mentor_last_article') || 'null');
+    if (/^\/(?:posts|reviews)\/\d+$/.test(lastArticle?.path) && Date.now() - lastArticle.at < 30 * 60_000) sourcePath = lastArticle.path;
+  } catch {}
+  const payload = { name: String(data.get('name') || '').trim(), phone: String(data.get('phone') || '').trim(), goal: String(data.get('goal') || ''), education: String(data.get('education') || ''), message: String(data.get('message') || '').trim(), calculator: calculatorSnapshot(), source_path: sourcePath };
   button.disabled = true; status.textContent = '신청 내용을 접수하는 중입니다.';
   try {
     const response = await fetch('/api/consultations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!response.ok) throw new Error('접수 실패');
-    form.reset(); status.textContent = '상담 신청이 접수되었습니다. 정수멘토가 확인 후 연락드리겠습니다.';
+    form.reset();
+    try { sessionStorage.removeItem('mentor_last_article'); } catch {}
+    status.textContent = '상담 신청이 접수되었습니다. 정수멘토가 확인 후 연락드리겠습니다.';
   } catch {
     status.textContent = '접수하지 못했습니다. 입력한 내용은 그대로 두었으니 잠시 후 다시 시도해 주세요.';
   } finally { button.disabled = false; }

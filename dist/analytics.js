@@ -1,5 +1,8 @@
 const trackedPath = location.pathname;
-if (trackedPath === '/' || /^\/(?:posts|reviews)\/\d+$/.test(trackedPath)) {
+if (trackedPath === '/' || /^\/(?:posts|reviews)(?:\/\d+)?$/.test(trackedPath)) {
+  if (/^\/(?:posts|reviews)\/\d+$/.test(trackedPath)) {
+    try { sessionStorage.setItem('mentor_last_article', JSON.stringify({ path: trackedPath, at: Date.now() })); } catch {}
+  }
   const classify = value => {
     const host = value.toLowerCase();
     if (/(^|\.)google\./.test(host)) return 'google';
@@ -15,21 +18,25 @@ if (trackedPath === '/' || /^\/(?:posts|reviews)\/\d+$/.test(trackedPath)) {
   const campaign = new URLSearchParams(location.search).get('utm_source');
   const knownCampaigns = ['google','naver','daum','bing','kakao','instagram','facebook','youtube'];
   const campaignSource = campaign ? (knownCampaigns.includes(campaign.toLowerCase()) ? campaign.toLowerCase() : 'other-campaign') : null;
-  let source = campaignSource;
+  let source = campaignSource, sourceDomain = '', landingPath = trackedPath;
   try {
-    if (!source) source = sessionStorage.getItem('mentor_visit_source');
-    if (!source) {
+    const prior = JSON.parse(sessionStorage.getItem('mentor_visit_entry') || 'null');
+    if (prior?.source && prior?.landingPath) {
+      source = prior.source; sourceDomain = prior.sourceDomain || ''; landingPath = prior.landingPath;
+    } else {
       const referrer = document.referrer ? new URL(document.referrer) : null;
-      source = referrer && referrer.hostname !== location.hostname ? classify(referrer.hostname) : 'direct';
+      const external = referrer && referrer.hostname !== location.hostname;
+      source ||= external ? classify(referrer.hostname) : 'direct';
+      sourceDomain = external ? referrer.hostname.toLowerCase().slice(0, 100) : '';
+      sessionStorage.setItem('mentor_visit_entry', JSON.stringify({ source, sourceDomain, landingPath }));
     }
-    sessionStorage.setItem('mentor_visit_source', source);
   } catch { source ||= 'unknown'; }
   fetch('/api/analytics/view', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
     keepalive: true,
-    body: JSON.stringify({ path: trackedPath, source })
+    body: JSON.stringify({ path: trackedPath, source, source_domain: sourceDomain, landing_path: landingPath })
   }).catch(() => {});
 
   document.addEventListener('click', event => {

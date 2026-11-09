@@ -13,10 +13,14 @@ function localStorage() {
     if (!db.prepare('PRAGMA table_info(consultations)').all().some(column => column.name === 'status')) db.exec("ALTER TABLE consultations ADD COLUMN status TEXT NOT NULL DEFAULT 'new'");
     if (!db.prepare('PRAGMA table_info(consultations)').all().some(column => column.name === 'admin_note')) db.exec("ALTER TABLE consultations ADD COLUMN admin_note TEXT NOT NULL DEFAULT ''");
     if (!db.prepare('PRAGMA table_info(consultations)').all().some(column => column.name === 'status_updated_at')) db.exec('ALTER TABLE consultations ADD COLUMN status_updated_at TEXT');
+    if (!db.prepare('PRAGMA table_info(consultations)').all().some(column => column.name === 'source_path')) db.exec('ALTER TABLE consultations ADD COLUMN source_path TEXT');
+    if (!db.prepare('PRAGMA table_info(consultations)').all().some(column => column.name === 'source_title')) db.exec('ALTER TABLE consultations ADD COLUMN source_title TEXT');
     const contentExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='content_entries'").get();
     db.exec("CREATE TABLE IF NOT EXISTS content_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, category TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, sample INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)");
     db.exec('CREATE TABLE IF NOT EXISTS analytics_page_views (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, path TEXT NOT NULL, visitor_hash TEXT NOT NULL)');
     if (!db.prepare('PRAGMA table_info(analytics_page_views)').all().some(column => column.name === 'source')) db.exec("ALTER TABLE analytics_page_views ADD COLUMN source TEXT NOT NULL DEFAULT 'unknown'");
+    if (!db.prepare('PRAGMA table_info(analytics_page_views)').all().some(column => column.name === 'source_domain')) db.exec("ALTER TABLE analytics_page_views ADD COLUMN source_domain TEXT NOT NULL DEFAULT ''");
+    if (!db.prepare('PRAGMA table_info(analytics_page_views)').all().some(column => column.name === 'landing_path')) db.exec("ALTER TABLE analytics_page_views ADD COLUMN landing_path TEXT NOT NULL DEFAULT ''");
     db.exec('CREATE INDEX IF NOT EXISTS analytics_page_views_day_path ON analytics_page_views (day, path)');
     db.exec('CREATE INDEX IF NOT EXISTS analytics_page_views_visitor ON analytics_page_views (visitor_hash)');
     db.exec('CREATE TABLE IF NOT EXISTS analytics_daily_visitors (day TEXT NOT NULL, visitor_hash TEXT NOT NULL, PRIMARY KEY (day, visitor_hash))');
@@ -38,11 +42,11 @@ function localStorage() {
       async getImage(name) { return readFile(join(uploadDir, name)).catch(error => { if (error.code === 'ENOENT') return null; throw error; }); },
       async putImage(name, file) { await writeFile(join(uploadDir, name), file, { flag: 'wx' }); },
       async insertConsultation(row) {
-        const result = db.prepare('INSERT INTO consultations (created_at, name, phone, goal, education, message, calculator) VALUES (?, ?, ?, ?, ?, ?, ?)').run(row.created_at, row.name, row.phone, row.goal, row.education, row.message, row.calculator ? JSON.stringify(row.calculator) : null);
+        const result = db.prepare('INSERT INTO consultations (created_at, name, phone, goal, education, message, calculator, source_path, source_title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(row.created_at, row.name, row.phone, row.goal, row.education, row.message, row.calculator ? JSON.stringify(row.calculator) : null, row.source_path ?? null, row.source_title ?? null);
         return Number(result.lastInsertRowid);
       },
       async listConsultations() {
-        return db.prepare('SELECT id, created_at, name, phone, goal, education, message, calculator, status, admin_note, status_updated_at FROM consultations ORDER BY id DESC LIMIT 500').all().map(row => ({ ...row, calculator: row.calculator ? JSON.parse(row.calculator) : null }));
+        return db.prepare('SELECT id, created_at, name, phone, goal, education, message, calculator, source_path, source_title, status, admin_note, status_updated_at FROM consultations ORDER BY id DESC LIMIT 500').all().map(row => ({ ...row, calculator: row.calculator ? JSON.parse(row.calculator) : null }));
       },
       async updateConsultation(id, { status, admin_note, status_updated_at }) { return Boolean(db.prepare('UPDATE consultations SET status=?, admin_note=?, status_updated_at=? WHERE id=?').run(status, admin_note, status_updated_at, id).changes); },
       async deleteConsultation(id) { return Boolean(db.prepare('DELETE FROM consultations WHERE id=?').run(id).changes); },
@@ -58,11 +62,11 @@ function localStorage() {
         return Boolean(result.changes);
       },
       async deleteContent(id) { return Boolean(db.prepare('DELETE FROM content_entries WHERE id=?').run(id).changes); },
-      async recordPageView({ day, path, visitor_hash, source }) {
+      async recordPageView({ day, path, visitor_hash, source, source_domain = '', landing_path = '' }) {
         db.exec('BEGIN');
         try {
           db.prepare('INSERT OR IGNORE INTO analytics_daily_visitors (day, visitor_hash) VALUES (?, ?)').run(day, visitor_hash);
-          db.prepare('INSERT INTO analytics_page_views (day, path, visitor_hash, source) VALUES (?, ?, ?, ?)').run(day, path, visitor_hash, source);
+          db.prepare('INSERT INTO analytics_page_views (day, path, visitor_hash, source, source_domain, landing_path) VALUES (?, ?, ?, ?, ?, ?)').run(day, path, visitor_hash, source, source_domain, landing_path);
           db.exec('COMMIT');
         } catch (error) { db.exec('ROLLBACK'); throw error; }
       },
@@ -80,11 +84,16 @@ function localStorage() {
         const dailyVisitors = new Map(db.prepare('SELECT day, count(*) AS visitors FROM analytics_daily_visitors WHERE day>=? GROUP BY day').all(days[0]).map(row => [row.day, row.visitors]));
         const pageCounts = new Map(db.prepare('SELECT path, count(*) AS total, sum(CASE WHEN day>=? THEN 1 ELSE 0 END) AS recent FROM analytics_page_views GROUP BY path').all(recentStart).map(row => [row.path, row]));
         const sources = db.prepare('SELECT source, count(*) AS views FROM analytics_page_views WHERE day>=? GROUP BY source ORDER BY views DESC').all(days[0]);
+        const sourceDomains = db.prepare("SELECT source, source_domain, count(*) AS views FROM analytics_page_views WHERE day>=? AND source_domain<>'' GROUP BY source, source_domain ORDER BY views DESC LIMIT 30").all(days[0]);
+        const landingPages = db.prepare("SELECT landing_path AS path, count(DISTINCT day || ':' || visitor_hash) AS visitors FROM analytics_page_views WHERE day>=? AND landing_path<>'' GROUP BY landing_path ORDER BY visitors DESC LIMIT 30").all(days[0]);
         const ctaClicks = db.prepare('SELECT target, count(*) AS clicks FROM analytics_cta_clicks WHERE day>=? GROUP BY target').all(days[0]);
+        const ctaPages = new Map(db.prepare('SELECT path, target, count(*) AS clicks FROM analytics_cta_clicks WHERE day>=? GROUP BY path, target').all(days[0]).map(row => [`${row.path}:${row.target}`, row.clicks]));
         return {
           days: days.map(day => ({ day, views: dailyViews.get(day) || 0, visitors: dailyVisitors.get(day) || 0 })),
-          pages: pages.map(page => ({ ...page, views: pageCounts.get(page.path)?.recent || 0, totalViews: pageCounts.get(page.path)?.total || 0 })),
+          pages: pages.map(page => ({ ...page, views: pageCounts.get(page.path)?.recent || 0, totalViews: pageCounts.get(page.path)?.total || 0, consultClicks: ctaPages.get(`${page.path}:consult`) || 0, kakaoClicks: ctaPages.get(`${page.path}:kakao`) || 0 })),
           sources,
+          sourceDomains,
+          landingPages,
           ctaClicks,
           totalViews: db.prepare('SELECT count(*) AS total FROM analytics_page_views').get().total
         };
@@ -110,7 +119,7 @@ async function supabaseStorage() {
     },
     async putImage(name, file, type) { result(await client.storage.from(bucket).upload(name, file, { contentType: type, upsert: false })); },
     async insertConsultation(row) { return result(await client.from('consultations').insert(row).select('id').single()).id; },
-    async listConsultations() { return result(await client.from('consultations').select('id,created_at,name,phone,goal,education,message,calculator,status,admin_note,status_updated_at').order('id', { ascending: false }).limit(500)); },
+    async listConsultations() { return result(await client.from('consultations').select('id,created_at,name,phone,goal,education,message,calculator,source_path,source_title,status,admin_note,status_updated_at').order('id', { ascending: false }).limit(500)); },
     async updateConsultation(id, row) { return Boolean(result(await client.from('consultations').update(row).eq('id', id).select('id').maybeSingle())); },
     async deleteConsultation(id) { return Boolean(result(await client.from('consultations').delete().eq('id', id).select('id').maybeSingle())); },
     async listContent() { return result(await client.from('content_entries').select('id,type,category,title,body,format,cover_image,sample,created_at,updated_at').order('id', { ascending: false })); },
@@ -135,10 +144,13 @@ async function supabaseStorage() {
       const dailyViews = new Map(summary.dailyViews.map(row => [row.day, Number(row.views)]));
       const dailyVisitors = new Map(summary.dailyVisitors.map(row => [row.day, Number(row.visitors)]));
       const pageCounts = new Map(summary.pages.map(row => [row.path, row]));
+      const ctaPages = new Map(summary.ctaPages.map(row => [`${row.path}:${row.target}`, Number(row.clicks)]));
       return {
         days: days.map(day => ({ day, views: dailyViews.get(day) || 0, visitors: dailyVisitors.get(day) || 0 })),
-        pages: pages.map(page => ({ ...page, views: Number(pageCounts.get(page.path)?.recent || 0), totalViews: Number(pageCounts.get(page.path)?.total || 0) })),
+        pages: pages.map(page => ({ ...page, views: Number(pageCounts.get(page.path)?.recent || 0), totalViews: Number(pageCounts.get(page.path)?.total || 0), consultClicks: ctaPages.get(`${page.path}:consult`) || 0, kakaoClicks: ctaPages.get(`${page.path}:kakao`) || 0 })),
         sources: summary.sources.map(row => ({ source: row.source, views: Number(row.views) })),
+        sourceDomains: summary.sourceDomains.map(row => ({ source: row.source, source_domain: row.source_domain, views: Number(row.views) })),
+        landingPages: summary.landingPages.map(row => ({ path: row.path, visitors: Number(row.visitors) })),
         ctaClicks: summary.ctaClicks.map(row => ({ target: row.target, clicks: Number(row.clicks) })),
         totalViews: Number(summary.totalViews || 0)
       };

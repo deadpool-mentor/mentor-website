@@ -24,6 +24,7 @@ export function consultationEmailText(consultation, siteUrl = 'https://eduonplan
     `최종 학력: ${value(consultation.education)}`,
     `궁금한 점:\n${value(consultation.message) || '없음'}`
   ];
+  if (consultation.source_path && consultation.source_title) sections.push(`상담 전 마지막으로 본 글: ${value(consultation.source_title)}\n글 주소: ${siteUrl.replace(/\/$/, '')}${consultation.source_path}`);
   if (plan && typeof plan === 'object') {
     const goal = plan.goal || {}, summary = plan.summary || {}, entries = plan.entries || {};
     sections.push([
@@ -51,7 +52,8 @@ export async function sendConsultationEmail(consultation, options = {}) {
   const key = options.key ?? process.env.RESEND_API_KEY;
   if (!key) throw new Error('RESEND_API_KEY is not configured');
   const from = options.from ?? process.env.CONSULTATION_EMAIL_FROM ?? '정수멘토 <consultations@notify.eduonplan.co.kr>';
-  const to = options.to ?? process.env.CONSULTATION_EMAIL_TO ?? 'na24101@naver.com';
+  const to = options.to ?? process.env.CONSULTATION_EMAIL_TO;
+  if (!to) throw new Error('CONSULTATION_EMAIL_TO is not configured');
   const siteUrl = options.siteUrl ?? process.env.PUBLIC_SITE_URL ?? 'https://eduonplan.co.kr';
   const request = options.fetch ?? fetch;
   const response = await request('https://api.resend.com/emails', {
@@ -73,4 +75,3 @@ export async function sendConsultationEmail(consultation, options = {}) {
   if (!data.id) throw new Error('Resend did not confirm an email ID');
   return data.id;
 }
-

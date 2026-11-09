@@ -23,6 +23,8 @@ create table if not exists public.consultations (
   education text not null,
   message text not null default '',
   calculator jsonb,
+  source_path text,
+  source_title text,
   status text not null default 'new' check (status in ('new', 'contacted', 'planned', 'closed')),
   admin_note text not null default '',
   status_updated_at timestamptz
@@ -31,6 +33,8 @@ create table if not exists public.consultations (
 alter table public.consultations add column if not exists status text not null default 'new';
 alter table public.consultations add column if not exists admin_note text not null default '';
 alter table public.consultations add column if not exists status_updated_at timestamptz;
+alter table public.consultations add column if not exists source_path text;
+alter table public.consultations add column if not exists source_title text;
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'consultations_status_check' and conrelid = 'public.consultations'::regclass) then
     alter table public.consultations add constraint consultations_status_check check (status in ('new', 'contacted', 'planned', 'closed'));
@@ -53,6 +57,8 @@ create table if not exists public.analytics_page_views (
 );
 -- Existing installations keep earlier views as unknown rather than mislabeling them as direct visits.
 alter table public.analytics_page_views add column if not exists source text not null default 'unknown';
+alter table public.analytics_page_views add column if not exists source_domain text not null default '';
+alter table public.analytics_page_views add column if not exists landing_path text not null default '';
 create index if not exists analytics_page_views_day_path on public.analytics_page_views (day, path);
 create index if not exists analytics_page_views_visitor on public.analytics_page_views (visitor_hash);
 
@@ -95,8 +101,14 @@ as $$
       from (select path, count(*) as total, count(*) filter (where day >= p_recent_day) as recent from public.analytics_page_views group by path) page_count),
     'sources', (select coalesce(jsonb_agg(to_jsonb(source_count) order by source_count.views desc), '[]'::jsonb)
       from (select source, count(*) as views from public.analytics_page_views where day >= p_start_day group by source) source_count),
+    'sourceDomains', (select coalesce(jsonb_agg(to_jsonb(domain_count) order by domain_count.views desc), '[]'::jsonb)
+      from (select source, source_domain, count(*) as views from public.analytics_page_views where day >= p_start_day and source_domain <> '' group by source, source_domain order by views desc limit 30) domain_count),
+    'landingPages', (select coalesce(jsonb_agg(to_jsonb(landing_count) order by landing_count.visitors desc), '[]'::jsonb)
+      from (select landing_path as path, count(distinct (day, visitor_hash)) as visitors from public.analytics_page_views where day >= p_start_day and landing_path <> '' group by landing_path order by visitors desc limit 30) landing_count),
     'ctaClicks', (select coalesce(jsonb_agg(to_jsonb(click_count)), '[]'::jsonb)
       from (select target, count(*) as clicks from public.analytics_cta_clicks where day >= p_start_day group by target) click_count),
+    'ctaPages', (select coalesce(jsonb_agg(to_jsonb(click_page)), '[]'::jsonb)
+      from (select path, target, count(*) as clicks from public.analytics_cta_clicks where day >= p_start_day group by path, target) click_page),
     'totalViews', (select count(*) from public.analytics_page_views)
   );
 $$;

@@ -65,7 +65,13 @@ function show(application) {
     } catch { save.disabled = false; statusMessage.textContent = '저장하지 못했습니다. 다시 시도해 주세요.'; }
   });
   detail.append(progress);
-  const info = item('div', '', 'admin-info'); info.append(field('연락처', application.phone), field('상담 목표', application.goal), field('최종 학력', application.education), field('궁금한 점', application.message)); detail.append(info);
+  const info = item('div', '', 'admin-info'); info.append(field('연락처', application.phone), field('상담 목표', application.goal), field('최종 학력', application.education), field('궁금한 점', application.message));
+  if (application.source_path && application.source_title) {
+    const source = field('상담 전 마지막으로 본 글', '');
+    const link = item('a', application.source_title); link.href = application.source_path; link.target = '_blank'; link.rel = 'noopener noreferrer';
+    source.querySelector('strong').replaceChildren(link); info.append(source);
+  }
+  detail.append(info);
   const plan = application.calculator; detail.append(item('h2', '학점계산 내역'));
   if (!plan) { detail.append(item('p', '학점계산기를 사용하지 않았습니다.')); return; }
   const summary = item('div', '', 'admin-info');
@@ -80,7 +86,7 @@ async function loadAnalytics() {
   try {
     const response = await fetch('/api/admin/analytics', { cache: 'no-store' });
     if (!response.ok) throw new Error('Analytics unavailable');
-    const { days, pages, sources, totalViews, ctaClicks = [] } = await response.json();
+    const { days, pages, sources, sourceDomains = [], landingPages = [], totalViews, ctaClicks = [] } = await response.json();
     const today = days.at(-1) || { views: 0, visitors: 0 };
     const lastSevenViews = days.slice(-7).reduce((sum, day) => sum + day.views, 0);
     const summary = $('#analyticsSummary'); summary.replaceChildren();
@@ -100,13 +106,13 @@ async function loadAnalytics() {
       const row = item('div', '', 'analytics-row'); row.append(item('span', day.day.slice(5)), item('span', `방문자 ${day.visitors.toLocaleString('ko-KR')}`), item('strong', `${day.views.toLocaleString('ko-KR')}회`)); overviewDays.append(row);
     }
     const pageList = $('#analyticsPages'); pageList.replaceChildren();
-    for (const page of pages.sort((a, b) => b.totalViews - a.totalViews)) {
+    for (const page of pages.sort((a, b) => (b.consultClicks + b.kakaoClicks) - (a.consultClicks + a.kakaoClicks) || b.totalViews - a.totalViews)) {
       const row = item('div', '', 'admin-page-row');
       const link = item('a', page.title); link.href = page.path; link.target = '_blank'; link.rel = 'noopener noreferrer';
       const label = item('span', '', 'admin-page-label'); label.append(item('small', page.category), link);
-      row.append(label, item('span', Number(page.views).toLocaleString('ko-KR')), item('strong', Number(page.totalViews).toLocaleString('ko-KR'))); pageList.append(row);
+      row.append(label, item('span', Number(page.views).toLocaleString('ko-KR')), item('strong', Number(page.totalViews).toLocaleString('ko-KR')), item('span', Number(page.consultClicks).toLocaleString('ko-KR')), item('strong', Number(page.kakaoClicks).toLocaleString('ko-KR'))); pageList.append(row);
     }
-    $('#pageStatus').textContent = `${pages.length - 1}개 공개 글과 홈페이지를 표시합니다. 관리자 방문은 제외됩니다.`;
+    $('#pageStatus').textContent = `${pages.length - 3}개 공개 글과 홈페이지·목록 페이지 2개를 표시합니다. 상담 클릭이 많은 순서이며 관리자 방문은 제외됩니다.`;
     const sourceNames = { direct:'직접 방문', google:'Google', naver:'네이버', daum:'다음', bing:'Bing', kakao:'카카오톡', instagram:'Instagram', facebook:'Facebook', youtube:'YouTube', 'other-site':'기타 웹사이트', 'other-campaign':'기타 캠페인', unknown:'기존 데이터 / 알 수 없음' };
     const sourceList = $('#analyticsSources'); sourceList.replaceChildren();
     const sourceTotal = sources.reduce((sum, row) => sum + Number(row.views), 0);
@@ -118,6 +124,20 @@ async function loadAnalytics() {
       row.append(label, bar); sourceList.append(row);
     }
     if (!sources.length) sourceList.append(item('p', '아직 기록된 유입경로가 없습니다.', 'content-empty'));
+    const domainList = $('#analyticsSourceDomains'); domainList.replaceChildren();
+    for (const source of sourceDomains) {
+      const row = item('div', '', 'analytics-row');
+      row.append(item('span', `${sourceNames[source.source] || '기타'} · ${source.source_domain}`), item('strong', `${Number(source.views).toLocaleString('ko-KR')}회`)); domainList.append(row);
+    }
+    if (!sourceDomains.length) domainList.append(item('p', '아직 상세 유입 사이트 기록이 없습니다.', 'content-empty'));
+    const landingList = $('#analyticsLandingPages'); landingList.replaceChildren();
+    for (const landing of landingPages) {
+      const row = item('div', '', 'analytics-row');
+      const link = item('a', pages.find(page => page.path === landing.path)?.title || landing.path);
+      link.href = landing.path; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      row.append(link, item('strong', `${Number(landing.visitors).toLocaleString('ko-KR')}명`)); landingList.append(row);
+    }
+    if (!landingPages.length) landingList.append(item('p', '아직 첫 방문 페이지 기록이 없습니다.', 'content-empty'));
     $('#sourceStatus').textContent = `최근 30일 페이지 조회 ${sourceTotal.toLocaleString('ko-KR')}회 기준`;
     $('#analyticsStatus').textContent = '';
   } catch {
