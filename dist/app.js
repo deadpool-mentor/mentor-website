@@ -47,7 +47,7 @@ function renderReviews() {
     if (thumbnail && (/^\/uploads\/[a-f0-9]{32}\.(?:png|jpg|webp|gif)$/.test(thumbnail) || /^\/articles\/[a-z0-9-]+\.svg$/.test(thumbnail))) {
       card.classList.add('review-has-thumb');
       const frame = document.createElement('span'); frame.className = 'review-thumb';
-      const image = document.createElement('img'); image.src = thumbnail; image.alt = ''; image.loading = 'lazy';
+      const image = document.createElement('img'); image.src = thumbnail; image.alt = `학생 후기 대표 이미지: ${review.title}`; image.loading = 'lazy';
       frame.append(image);
       if (!review.cover_image) {
         const mark = document.createElement('span'); mark.className = 'review-thumb-watermark'; mark.setAttribute('aria-hidden', 'true');
